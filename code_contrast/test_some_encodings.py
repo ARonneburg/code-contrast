@@ -38,36 +38,10 @@ def test_incoder_derivatives(fn):
     assert msg2 == msg, msg2
 
 
-def test_cpp_encoder(ename):
-    enc = bpe_encoding.Encoding(ename)
-    enc.load_cpp()
-    msg = "I can feel the magic, can you?\nПривет мир!!!"
-    tokens1 = enc.encode(msg)
-    tokens2 = enc.senc.bpe(msg.encode("utf-8"))
-    msg2 = enc.decode(tokens2)
-    print("decode", msg2)
-    assert tokens1 == tokens2
-
-
-def test_stochastic_prob(ename, verbose=False):
-    prob = 0.05
-    print("\ntest_stochastic_prob", ename, prob)
-    enc = bpe_encoding.Encoding(ename)
-    msg = open(__file__).read()
-    tokens1, _ = enc.encode_stochastic(msg, [], prob=prob)
-    tokens2 = enc.encode(msg)
-    if verbose:
-        for t1, t2 in zip(tokens1, tokens2):
-            print("%05i %05i  %20s %20s" % (t1, t2, enc.decode([t1]).replace("\n", "\\n"), enc.decode([t2]).replace("\n", "\\n")))
-    print("len(tokens1)=%i len(tokens2)=%i   percent=%0.1f%%" % (len(tokens1), len(tokens2), 100*(len(tokens1)-len(tokens2))/len(tokens2)))
-
-
 if __name__=="__main__":
     test_rev50000_derivatives("openai_reversible50000")
     test_rev50000_derivatives("openai_programming_v1")
     test_rev50000_derivatives("openai_programming_v2")
-    test_cpp_encoder("openai_reversible50000")
-    test_stochastic_prob("openai_programming_v1", verbose=False)
     test_incoder_derivatives("facebook_incoder")
     test_incoder_derivatives("fb1")
     test_incoder_derivatives("fb3")

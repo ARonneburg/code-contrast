@@ -199,25 +199,6 @@ class Encoding:
         add_with_color("finish", "finish", "")
         return r
 
-    def load_cpp(self):
-        if self.senc is not None:
-            return
-        import pyximport
-        pyximport.install()
-        from bpe_encoding import cpp_encoder
-        j = json.load(open(self.json_fn))
-        vocab = j["model"]["vocab"]
-        merges = j["model"]["merges"]
-        vocab2 = dict()
-        for v, i in vocab.items():
-            vocab2[v.encode("utf-8")] = i
-        merges2 = list()
-        for m in merges:
-            merges2.append(m.encode("utf-8"))
-        self.senc = cpp_encoder.StochEncoder()
-        self.senc.save_vocab(vocab2)
-        self.senc.save_merges(merges2)
-
     def encode_stochastic(self, s, bounds_at: List[int], prob: float):
         bounds_n = int(len(s) * prob)
         if len(bounds_at) > 0:
