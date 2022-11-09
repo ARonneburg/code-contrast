@@ -1,11 +1,9 @@
 import random
-import termcolor
 import tokenizers
 import numpy as np
 
 from copy import copy
 from pathlib import Path
-from itertools import groupby
 
 from typing import List
 
@@ -133,75 +131,3 @@ class Encoding:
             if i > 0:
                 tokens = tokens[:i]
         return self._tokenizer.decode(tokens)
-
-    def hlprint(self, tokens, mask1=None, mask2=None):
-
-        def decode_colored(tokens, mask1, mask2):
-            for idx, token in enumerate(tokens):
-                text = self.decode([token])
-                color = None
-                on_color = None
-                if mask1 is not None and mask1[idx]:
-                    if token == self.ESCAPE:
-                        on_color = "on_green"
-                    else:
-                        color = "green"
-                elif mask2 is not None and mask2[idx]:
-                    if token == self.ESCAPE:
-                        on_color = "on_magenta"
-                    else:
-                        color = "magenta"
-                elif token == self.DIAMOND:
-                    color, on_color = "red", "on_white"
-                elif token in [self.ESCAPE, self.INFILL, self.MSG, self.FILE, self.CHUNK]:
-                    color, on_color = "red", "on_white"
-                elif token == self.EOT or self.is_tpos(token):
-                    color = "red"
-                yield text, color, on_color
-
-        keyfunc = lambda text, color, on_color: (color, on_color)
-        return "".join([
-            termcolor.colored("".join([text for text, _, _ in group]),
-                              color=color, on_color=on_color)
-            for (color, on_color), group in groupby(decode_colored(tokens, mask1, mask2), keyfunc)
-        ])
-
-    # TODO: typing, unclear diffedits format
-    def editclass_print(self, tokens, mask, diffedits):
-
-        def decode_colored(tokens, mask, diffedits):
-            for token, m, diffedit in zip(tokens, mask, diffedits):
-                text = self.decode([token])
-                color = None
-                on_color = None
-                if diffedit == 1:  # no edit
-                    on_color = "on_blue"
-                elif diffedit == 2:  # edit
-                    if token == self.LF:
-                        color, text = "yellow", "EDIT\n"
-                    else:
-                        color = "red"
-                elif diffedit == 3:  # continue
-                    if token == self.LF:
-                        color, text = "yellow", "MOAR\n"
-                    else:
-                        color = "magenta"
-                elif m:
-                    if token == self.ESCAPE:
-                        on_color = "on_green"
-                    else:
-                        color = "green"
-                elif token == self.DIAMOND:
-                    color, on_color = "grey", "on_white"
-                elif token in [self.ESCAPE, self.INFILL, self.MSG, self.FILE, self.CHUNK]:
-                    color, on_color = "grey", "on_white"
-                else:
-                    color = "blue"
-                yield text, color, on_color
-
-        keyfunc = lambda decoded, color, on_color: (color, on_color)
-        return "".join([
-            termcolor.colored("".join([decoded for decoded, _, _ in group]),
-                              color=color, on_color=on_color)
-            for (color, on_color), group in groupby(decode_colored(tokens, mask, diffedits), keyfunc)
-        ])
