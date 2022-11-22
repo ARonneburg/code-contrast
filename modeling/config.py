@@ -37,12 +37,12 @@ class Config:
 
     @property
     def n_vocab(self) -> int:
-        return 51305 #self.encoding.n_vocab
+        return self.encoding.n_vocab
 
     @property
     def encoding(self):
-        import bpe_encoding
-        return bpe_encoding.Encoding(self.enc_name)
+        from code_contrast import Encoding
+        return Encoding(self.enc_name)
 
     @property
     def mup(self) -> bool:

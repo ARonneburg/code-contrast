@@ -23,7 +23,7 @@ class MultiheadSelfAttention(nn.Module):
         #     self.scale = self.dim_head ** -0.5
 
     def _split_heads(self, tensor):
-        new_shape = tensor.shape[:-1] + [self.num_heads, self.dim_head]
+        new_shape = tensor.shape[:-1] + (self.num_heads, self.dim_head)
         tensor = tensor.view(new_shape)
         return tensor.permute(0, 2, 1, 3)
 
@@ -43,7 +43,7 @@ class MultiheadSelfAttention(nn.Module):
                                                    query.device,
                                                    query.dtype)
         if attention_mask is not None:
-            attn_weights = attn_weights + attention_mask
+            attn_weights = torch.masked_fill(attn_weights, attention_mask, torch.finfo(attn_weights.dtype).min)
 
         attn_weights = F.softmax(attn_weights, dim=-1)
         out = torch.matmul(attn_weights, value)
@@ -55,7 +55,7 @@ class MultiheadSelfAttention(nn.Module):
                 use_cache: bool = False):
         bs, t, _ = x.shape
 
-        query_key_value = F.linear(x, self.qkv, self.qkv_bias)
+        query_key_value = self.qkv(x)
         query, key, value = query_key_value.chunk(3, dim=-1)
         query = self._split_heads(query)
         key = self._split_heads(key)
@@ -73,6 +73,6 @@ class MultiheadSelfAttention(nn.Module):
 
         attn_output = self.attention(query, key, value, attention_mask=attention_mask)
         attn_output = self._merge_heads(attn_output)
-        attn_output = F.linear(attn_output, self.backproj, self.backproj_bias)
+        attn_output = self.out(attn_output)
         outputs = (attn_output, present)
         return outputs

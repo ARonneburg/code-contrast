@@ -19,7 +19,8 @@ class Block(nn.Module):
         # self.residual_scale = residual_scale
         # self.use_residual_scale = config.use_res_scale
 
-    def forward(self, hidden_states: torch.Tensor,
+    def forward(self,
+                hidden_states: torch.Tensor,
                 attention_mask: Optional[torch.Tensor] = None,
                 layer_past: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
                 use_cache: bool = False):

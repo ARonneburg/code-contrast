@@ -5,7 +5,7 @@ import numpy as np
 from copy import copy
 from pathlib import Path
 
-from typing import List
+from typing import List, Tuple
 
 
 class Encoding:
