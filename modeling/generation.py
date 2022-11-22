@@ -33,6 +33,12 @@ def _temperature_top_k_top_p_filtering(logits,
     return logits
 
 
+def _make_mask(seq_len: int, past_key_values_length: int, device: torch.device):
+    mask = torch.ones((seq_len, seq_len + past_key_values_length), dtype=torch.bool, device=device)
+    mask = torch.triu(mask, 1)
+    return mask
+
+
 def generate(model: torch.nn.Module,
              input_ids: torch.Tensor,
              max_length: Optional[int] = None,
@@ -47,13 +53,12 @@ def generate(model: torch.nn.Module,
     next_tokens = input_ids
     while True:
         batch_size, seq_len = next_tokens.shape
-        cached_len = seq_len
+        cache_len = 0
         if use_cache and past_key_values is not None:
-            cached_len += past_key_values[0][0].shape[2]
+            cache_len += past_key_values[0][0].shape[2]
 
-        attention_mask = torch.zeros(batch_size, 1, seq_len, cached_len,
-                                     dtype=torch.bool,
-                                     device=next_tokens.device)
+        attention_mask = _make_mask(seq_len, cache_len, next_tokens.device)
+
         output = model(next_tokens,
                        attention_mask=attention_mask,
                        past_key_values=past_key_values,
