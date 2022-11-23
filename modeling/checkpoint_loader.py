@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from cloudpickle import load
+
 # from huggingface_hub import hf_hub_download
 from modeling.config import Config
 
@@ -70,6 +71,18 @@ def _load_checkpoint(model, root_path: str):
     model.lm_head.weight.data[:] = _load_f(root_path, 'unemb')
     model.ln_f.weight.data[:] = _load_f(root_path, 'bounce.ln_final.weight')
     model.ln_f.bias.data[:] = _load_f(root_path, 'bounce.ln_final.bias')
+
+    model.bidir_sa_ln.weight.data[:] = _load_f(root_path, 'bidir_sa_ln.weight')
+    model.bidir_sa_ln.bias.data[:] = _load_f(root_path, 'bidir_sa_ln.bias')
+    model.bidir_sa.qkv.weight.data[:] = _load_f(root_path, 'bidir_sa.qkv')
+    model.bidir_sa.qkv.bias.data[:] = _load_f(root_path, 'bidir_sa.qkv_bias')
+    model.bidir_sa.out.weight.data[:] = _load_f(root_path, 'bidir_sa.backproj')
+    model.bidir_sa.out.bias.data[:] = _load_f(root_path, 'bidir_sa.backproj_bias')
+
+    model.bidir_2logits_ln.weight.data[:] = _load_f(root_path, 'bidir_2logits_ln.weight')
+    model.bidir_2logits_ln.bias.data[:] = _load_f(root_path, 'bidir_2logits_ln.bias')
+    model.bidir_2logits.weight.data[:] = _load_f(root_path, 'bidir_2logits.weight')
+    model.bidir_2logits.bias.data[:] = _load_f(root_path, 'bidir_2logits.bias')
 
     for i in range(1, len(model.layers) + 1):
         f_prefix = f'layers.{i:03d}'
