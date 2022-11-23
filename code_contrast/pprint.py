@@ -10,7 +10,7 @@ __all__ = ["hlprint", "editclass_print"]
 
 
 def _colored_join(sequence: Iterable[Tuple[str, str, str]]):
-    keyfunc = lambda text, color, on_color: (color, on_color)
+    keyfunc = lambda item: item[1:3]
     return "".join([
         termcolor.colored("".join([text for text, _, _ in group]),
                           color=color, on_color=on_color)
