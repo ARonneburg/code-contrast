@@ -49,4 +49,35 @@ class CodifyModel(nn.Module):
 
         hidden_states = self.ln_f(hidden_states)
         output = self.lm_head(hidden_states)
+        # [1, 66, 1024]
+        # print(hidden_states.shape)
+        # print(presents)
+        # dict(presents=presents, x_bte=hidden_states)
         return output, presents
+
+    def highlight_forward(self, x_bte, first_bt, diffhlpoint):
+        B, T, E = x_bte.shape
+        assert E == self.embed_dim
+        # assert T == self.hps.T, (T, self.hps.T)   # for testing, can be smaller 1024
+        assert T == first_bt.shape[1], str(first_bt.shape)
+        assert T == diffhlpoint.shape[1], str(diffhlpoint.shape)
+        mask_BTT = torch.zeros((B, T, T), device=x_bte.device, dtype=torch.bool)
+        for t in range(T):
+            mask_BTT[:, t, t] = True
+        for b in range(B):
+            # first_bt[b]       # [0,0,0,1,0,0,0,0,0]
+            # diffhlpoint[b]    # [0,0,0,0,0,0,1,0,0]
+            # first nonzero in first_bt
+            t1s = (first_bt[b] == 1).nonzero(as_tuple=False).squeeze(1)
+            t2s = (diffhlpoint[b] == 1).nonzero(as_tuple=False).squeeze(1)
+            assert len(t1s) >= len(t2s)
+            for t1, t2 in zip(t1s, t2s):
+                t1 = t1.item()
+                t2 = t2.item()
+                assert t1 < t2
+                if t2 < T:
+                    t2 += 1
+                # fill rectangle on main diagonal
+                mask_BTT[b, t1:t2, t1:t2] = 1
+        inside, _state = self.bidir_sa.forward(self.bidir_sa_ln(x_bte), mask_BTT)
+        return inside
