@@ -247,7 +247,7 @@ if __name__ == "__main__":
             post.cursor1 = -1
             post.cursor_file = ""
         if post.function == "highlight":
-            post.max_tokens = 0
+            post.max_tokens = 1
         request = post.clamp()
         request.update({
             "id": str(uuid4()),
