@@ -1,7 +1,9 @@
-import termcolor
-import difflib, random
 import copy
-from bpe_encoding import Encoding
+import random
+import difflib
+import termcolor
+
+from code_contrast.encoding import Encoding
 
 
 text_a = """#hmm
@@ -65,7 +67,7 @@ def ops_remove_short_equals(ops, upto):
     return result
 
 
-def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_insert):
+def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_insert, exact_cx_lines0=-1, exact_cx_lines1=-1):
     if upto2 == 0:
         return ops
     result = copy.deepcopy(ops)
@@ -77,7 +79,10 @@ def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_i
             mop, mi1, mi2, mj1, mj2 = result[n]
             if lop == "equal" and mop != "equal" and random.random() < left_prob:
                 assert li2 == mi1
-                move = random.randint(upto1, upto2)   # inclusive
+                if exact_cx_lines0 >= 0:
+                    move = exact_cx_lines0
+                else:
+                    move = random.randint(upto1, upto2)   # inclusive
                 if move < li2 - li1 and move > 0:
                     result[n-1] = (lop, li1, li2 - move, lj1, lj2 - move)
                     result[n] = (mop, mi1 - move, mi2, mj1 - move, mj2)
@@ -88,7 +93,10 @@ def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_i
             # if mop != "equal" and rop == "equal" and (random.random() < right_prob or (mi1==mi2 and disable_insert)):
             if mop != "equal" and rop == "equal" and random.random() < right_prob:
                 assert ri1 == mi2
-                move = random.randint(max(1, upto1) if (mi1==mi2 and disable_insert) else upto1, upto2)
+                if exact_cx_lines1 >= 0:
+                    move = exact_cx_lines1
+                else:
+                    move = random.randint(max(1, upto1) if (mi1==mi2 and disable_insert) else upto1, upto2)
                 if move < ri2 - ri1 and move > 0:
                     result[n] = (mop, mi1, mi2 + move, mj1, mj2 + move)
                     result[n+1] = (rop, ri1 + move, ri2, rj1 + move, rj2)

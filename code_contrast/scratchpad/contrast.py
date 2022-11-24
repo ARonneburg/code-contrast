@@ -1,11 +1,19 @@
-import difflib, random, copy, json
-from bpe_encoding import Encoding
-from typing import List, Dict, Tuple, DefaultDict, Any, Set
+import random
+import copy
+import json
+import termcolor
+
+import difflib
+from cdifflib import CSequenceMatcher
+
+from code_contrast.encoding import Encoding
+from code_contrast.scratchpad.stochastic import ops_remove_short_equals
+from code_contrast.scratchpad.stochastic import ops_stochastic_expand
+
 from collections import defaultdict
 from dataclasses import dataclass
-import termcolor
-from data_pipeline.contrast_stochastic import ops_remove_short_equals, ops_stochastic_expand
-from cdifflib import CSequenceMatcher
+
+from typing import List, Dict, Tuple, DefaultDict, Any, Set
 
 
 OFFSET_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -20,10 +28,12 @@ class Edit:
     shift: int
     todel: List[int]
     toins: List[int]
-    i1: int
-    i2: int
+    i1: int = -1
+    i2: int = -1
     real_cursor: int = -1
     real_delends: int = -1
+    error: str = ""
+    fuzzy: int = -1
 
 
 class DecodeError(ValueError):
@@ -38,18 +48,26 @@ WAIT, FILENAME, FILENAME_DIAMONDS, CODE, CODE_FINISHING, MSG, CHUNK, DEL, SHIFT,
 
 
 class UntokenizeState:
-    def __init__(self):
+    def __init__(self):    # full_orig_tokens: Dict[str, List[int]], orig_withpos: Dict[str, List[int]]):
         self.state = WAIT
         self.c = 0
+        self.brewing_edit: Edit = Edit("", 0, -1, [], [])
         self.fn_tokens = list()
         self.fn_txt = ""
         self.body_tokens = list()
         self.msg_tokens = list()
-        self.e_tpos = 0
-        self.e_del = list()
-        self.e_shift = -1
-        self.e_ins = list()
         self.eot = False
+        self.stats = {
+            "chunks_applied": 0,
+            "files_unchanged": 0,
+            "files_patched": 0,
+            "invalid_tpos": 0,
+            "errors": 0,
+            "fuzzy": 0,
+            # "tokens": len(self.r),
+            }
+        self.scratch: Dict[str, List[int]] = dict()
+        self.orig2scratch: Dict[str, List[int]] = dict()
 
 
 class ContrastDiff:
@@ -62,7 +80,7 @@ class ContrastDiff:
         self.edits: List[Edit] = list()
         self.fn2tind: DefaultDict[str, List[int]] = defaultdict(list)
         self.fn2tstart: Dict[str, int] = dict()
-        self.fn2shortened: Dict[str, int] = dict()
+        self.fn2cut0: Dict[str, int] = dict()
         self.r: List[int] = list()
         self.m: List[int] = list()
         self.errors: List[str] = list()
@@ -81,15 +99,11 @@ class ContrastDiff:
         odm: Dict[str, Any],
         n_ctx: int,
         commit_ahead: bool =True,
-        contrast_bridgeshort0: int = 0,
-        contrast_bridgeshort1: int = 0,
-        contrast_expand_prob_left: float = 0.0,
-        contrast_expand_prob_right: float = 0.0,
-        contrast_expand_upto: int = 0,
-        contrast_stochastic_tokens: float = 0.0,
         contrast_unmask_orig: int = 0,
         auto_shrink = True,
         tight_shrink = False,
+        exact_cx_lines0 = -1,
+        exact_cx_lines1 = -1,
     ) -> Dict[str, List[int]]:
         files1 = set(odm["orig"].keys()) if ("orig" in odm) else set(odm["orig_tokens"].keys())
         files2 = set(odm["dest"].keys()) if ("dest" in odm) else set(odm["dest_tokens"].keys())
@@ -103,8 +117,11 @@ class ContrastDiff:
         opblocks = []
         for fn in files:
             assert ("orig_tokens" in odm and "dest_tokens" in odm) or ("orig" in odm and "dest" in odm)
-            orig_lines = odm["orig"][fn].replace('\r\n', '\n').replace('\r', '\n').splitlines(keepends=True)
-            dest_lines = odm["dest"][fn].replace('\r\n', '\n').replace('\r', '\n').splitlines(keepends=True)
+            # Doesn't work well with \u2028
+            # orig_lines = odm["orig"][fn].replace('\r\n', '\n').replace('\r', '\n').splitlines()
+            # dest_lines = odm["dest"][fn].replace('\r\n', '\n').replace('\r', '\n').splitlines()
+            orig_lines = [x+"\n" for x in odm["orig"][fn].splitlines()]
+            dest_lines = [x+"\n" for x in odm["dest"][fn].splitlines()]
             if orig_lines[-1][-1] != "\n":
                 orig_lines[-1] += "\n"
             if dest_lines[-1][-1] != "\n":
@@ -118,7 +135,11 @@ class ContrastDiff:
                 if tag in ["replace", "delete", "insert"]:
                     dellines.append(i1)
                     contlines.extend(list(range(i1+1, i2)))
-            fndiff = ops_stochastic_expand(fndiff, left_prob=1, right_prob=1, upto1=0, upto2=2, disable_insert=True)
+            fndiff = ops_stochastic_expand(fndiff,
+                left_prob=1, right_prob=1,
+                upto1=0, upto2=2,
+                exact_cx_lines0=exact_cx_lines0, exact_cx_lines1=exact_cx_lines1,
+                disable_insert=True)
             fndiff = ops_remove_short_equals(fndiff, upto=2)
             DUMP_DIFF = 0
             def orig_app(line):
@@ -156,10 +177,6 @@ class ContrastDiff:
                 if DUMP_DIFF:
                     for j in range(j1, j2):
                         print("     ", "%04i" % i, "+", dest_lines[j].rstrip("\n"))
-                # print("DEL", fn, file_dellines[fn])
-                # print("SRCDEL", dellines)
-                # if dellines and len(file_dellines[fn])==0:
-                    # assert 0
                 for line in dest_lines[j1:j2]:
                     tmp = self.enc.encode(line)
                     dest_all_tokens.extend(tmp)
@@ -297,10 +314,7 @@ class ContrastDiff:
             tpos_unused *= 2
             need_to_cut = 0
             if self.tokens_without_shortening > n_ctx:
-                if tight_shrink:
-                    need_to_cut = self.tokens_without_edits - n_ctx
-                else:
-                    need_to_cut = self.tokens_without_shortening - n_ctx
+                need_to_cut = self.tokens_without_shortening - n_ctx
             # print("tight_shrink=%i need_to_cut=%i, self.tokens_without_edits=%i, self.tokens_without_shortening=%i, n_ctx=%i" % (
             #    tight_shrink, need_to_cut, self.tokens_without_edits, self.tokens_without_shortening, n_ctx))
             #print("n_ctx=%i" % (n_ctx))
@@ -319,11 +333,9 @@ class ContrastDiff:
                             if i == 0:
                                 #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (1)" % (fn, need_to_cut, cut_this_file, r1, r2))
                                 r2 = max(i2, r2 - cut_this_file)
-                                #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (1)" % (fn, need_to_cut, cut_this_file, r1, r2))
                             elif i == 1:
                                 #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (2)" % (fn, need_to_cut, cut_this_file, r1, r2))
                                 r1 = min(r1 + cut_this_file, i1)
-                                #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (2)" % (fn, need_to_cut, cut_this_file, r1, r2))
                         else:
                             if random.random() < 0.5:
                                 r1 = random.randint(r1, i1)
@@ -436,12 +448,14 @@ class ContrastDiff:
                     print("WARNING: not LF at %i" % i)
         return class_vect
 
-    def untokenize_init(self, orig_tokens: Dict[str, List[int]]):
+    def untokenize_init(self, full_orig_tokens: Dict[str, List[int]]):
         """
         Requires original, because files might be truncated to fit into context.
         """
-        us = UntokenizeState()
-        us.orig_tokens = orig_tokens
+        assert len(self.orig_tokens) == 0
+        assert len(self.orig_withpos) == 0
+        self.full_orig_tokens = full_orig_tokens
+        us = UntokenizeState()   #orig_tokens, self.orig_withpos)
         return us
 
     def untokenize_finish_state(self, us: UntokenizeState, c: int):
@@ -456,10 +470,10 @@ class ContrastDiff:
             if len(tmp) == 2:
                 us.fn_txt, _shortened_tokens = tmp
                 shortened_tokens = int(_shortened_tokens)
-                if us.fn_txt in us.orig_tokens:
-                    self.orig_tokens[us.fn_txt] = us.orig_tokens[us.fn_txt]
-                    self.fn2shortened[us.fn_txt] = shortened_tokens
-                    us.body_tokens = self.orig_tokens[us.fn_txt][:shortened_tokens]
+                if us.fn_txt in self.full_orig_tokens:
+                    self.orig_tokens[us.fn_txt] = self.full_orig_tokens[us.fn_txt]
+                    self.fn2cut0[us.fn_txt] = shortened_tokens
+                    us.body_tokens = self.full_orig_tokens[us.fn_txt][:shortened_tokens]
                     # print("start body tokens %s: %s" % (fn_txt, body_tokens))
                 else:
                     print(f"WARNING: '{us.fn_txt}' not found in the original")
@@ -473,11 +487,11 @@ class ContrastDiff:
                 without_tpos = [t for t in us.body_tokens if not self.enc.is_tpos(t)]
                 while len(without_tpos) and without_tpos[-1] in [self.enc.ESCAPE, self.enc.DIAMOND]:
                     without_tpos.pop(-1)
-                if len(self.orig_tokens) > 0:  # else test mode
+                if len(self.full_orig_tokens) > 0:  # else test mode
                     for i in range(len(without_tpos)):
-                        assert without_tpos[i] == self.orig_tokens[us.fn_txt][i], "\n" + str(without_tpos) + "\n" + str(self.orig_tokens[us.fn_txt])
-                if us.fn_txt in self.orig_tokens:
-                    leftover_tokens = self.orig_tokens[us.fn_txt][len(without_tpos):]
+                        assert without_tpos[i] == self.full_orig_tokens[us.fn_txt][i], "\n" + str(without_tpos) + "\n" + str(self.orig_tokens[us.fn_txt])
+                if us.fn_txt in self.full_orig_tokens:
+                    leftover_tokens = self.full_orig_tokens[us.fn_txt][len(without_tpos):]
                 else:
                     leftover_tokens = []
                 buf = us.body_tokens
@@ -498,31 +512,23 @@ class ContrastDiff:
                         buf.append(leftover_tokens[l])
                         l += 1
                         bi += 1
-                self.orig_withpos[us.fn_txt] = buf    # all tokens, including cutted off on top/bottom
+                self.orig_withpos[us.fn_txt] = buf    # all tokens, including cut off from top/bottom
+                us.scratch[us.fn_txt] = copy.deepcopy(buf)
+                us.orig2scratch[us.fn_txt] = list(range(len(us.scratch[us.fn_txt]) + 1))   # Initially 1:1, differs after edits
             us.body_tokens = list()
             us.fn_txt = ""
         elif us.state == MSG:
             self.commitmsg = self.enc.decode(us.msg_tokens).lstrip()
             us.msg_tokens = list()
         elif us.state == INS:
-            if us.e_tpos == 0:
-                raise DecodeError("Invalid e_tpos at %i" % c)
-            if us.e_shift == -1:
-                raise DecodeError("Invalid e_shift at %i" % c)
-            self.edits.append(Edit(
-                #             e.fn = self.tpos2fn(e.tpos)
-                self.tpos2fn(us.e_tpos),
-                us.e_tpos,
-                us.e_shift,
-                us.e_del,
-                us.e_ins,
-                i1=-1,
-                i2=-1,
-            ))
-            us.e_tpos = 0
-            us.e_del = list()
-            us.e_shift = -1
-            us.e_ins = list()
+            if us.brewing_edit.tpos == 0:
+                us.brewing_edit.error = "Invalid tpos at %i" % c
+            if us.brewing_edit.shift == -1:
+                us.brewing_edit.error = "Invalid shift at %i" % c
+            if us.brewing_edit.fuzzy == -1 and len(us.brewing_edit.error) == 0:
+                us.brewing_edit.error = "Fuzzy is still -1 at INS state"
+            self.edits.append(us.brewing_edit)
+            us.brewing_edit = Edit("", 0, -1, [], [])
         else:
             assert 0, us.state
 
@@ -575,10 +581,13 @@ class ContrastDiff:
 
         if us.state == CHUNK:
             if self.enc.is_tpos(t):
-                us.e_tpos = t
+                us.brewing_edit.tpos = t
+                us.brewing_edit.fn = self.tpos2fn(t)
+                if us.brewing_edit.fn == "unknown":
+                    us.brewing_edit.error = "unknown tpos"
                 us.state = DEL
             else:
-                raise DecodeError("In chunk position token is expected at %i" % c)
+                raise DecodeError("In chunk state position token is expected at %i" % c)
             return
         if us.state == DEL:
             if self.enc.is_tpos(t):
@@ -587,14 +596,17 @@ class ContrastDiff:
                 self.untokenize_finish_state(us, c)
                 us.state = SHIFT
             else:
-                us.e_del.append(t)
+                us.brewing_edit.todel.append(t)
+                self.untokenize_locate_edit(us)
             return
         if us.state == SHIFT:
             tmp = self.enc.decode([t])
             indexin = OFFSET_CHARS
             if len(tmp) != 1 or tmp not in indexin:
                 raise DecodeError("Invalid shift token at %i, decoded to '%s'" % (c, tmp))
-            us.e_shift = indexin.index(tmp)
+            us.brewing_edit.shift = indexin.index(tmp)
+            us.brewing_edit.real_cursor = -1
+            us.brewing_edit.fuzzy = self.untokenize_locate_edit(us)
             self.untokenize_finish_state(us, c)
             us.state = INS
             return
@@ -605,19 +617,20 @@ class ContrastDiff:
                 self.untokenize_finish_state(us, c)
                 us.state = CHUNK
                 return
-            us.e_ins.append(t)
+            us.brewing_edit.toins.append(t)
             return
         assert 0, us.state
 
-    def untokenize(self, tokens: List[int], orig_tokens: Dict[str, List[int]]):
-        us = self.untokenize_init(orig_tokens)
-        for c, t in enumerate(tokens):
+    def untokenize(self, process_tokens: List[int], full_orig_tokens: Dict[str, List[int]]):
+        us = self.untokenize_init(full_orig_tokens)
+        for c, t in enumerate(process_tokens):
             if t==self.enc.EOT:
                 us.eot = True
             if us.eot:
                 break
             self.untokenize_new_token(us, t, c)
         self.untokenize_finish_state(us, c)
+        return us
 
     def tpos2fn(self, tpos: int):
         for fn, fn_tokens in self.orig_withpos.items():
@@ -642,96 +655,122 @@ class ContrastDiff:
             c += 1
         return True, c
 
-    def apply_edits(self, orig_tokens: Dict[str, List[int]]) -> Dict[str, int]:
-        stats = {
-        "chunks_applied": 0,
-        "files_unchanged": 0,
-        "files_patched": 0,
-        "invalid_tpos": 0,
-        "errors": 0,
-        "fuzzy": 0,
-        "tokens": len(self.r),
-        }
-        for fn in orig_tokens.keys():
-            fn_edits = [e for e in self.edits if e.fn == fn]
-            assert fn in self.orig_withpos
-            self.dest_tokens[fn] = []
-            orig = self.orig_withpos[fn]
-            scratch = copy.deepcopy(orig)
-            orig2scratch = list(range(len(scratch) + 1))   # Initially 1:1, differs after edits
-            chunks_this_file = 0
-            for ie, e in enumerate(fn_edits):
-                if e.fn == "unknown":
-                    stats["invalid_tpos"] += 1
-                    continue
-                try:
-                    orig_i = orig.index(e.tpos)
-                except ValueError:
-                    self.errors.append("Cannot apply chunk %i, position token %s not found" % (ie, self.enc.decode([e.tpos])))
-                    continue
-                try:
-                    tpos_scratch_idx = orig2scratch.index(orig_i)
-                except ValueError:
-                    self.errors.append("Cannot apply chunk %i, position token %s found at %i, but it's not in the scratch map" % (ie, self.enc.decode([e.tpos]), orig_i))
-                    continue
-                # if tpos_scratch_idx < 0 or tpos_scratch_idx > len(scratch):
-                #     self.errors.append("Cannot apply chunk %i, position token %s + shift %i is out of bounds" % (ie, self.enc.decode([e.tpos]), e.shift))
-                #     continue
+    def untokenize_locate_edit(self, us: UntokenizeState) -> int:
+        return self.edit_location_find(us, len(self.edits), us.brewing_edit)
 
-                lf_skipped = 0
-                candidates = []
-                sub = 0
-                while 1:
-                    sof = (tpos_scratch_idx - sub == 0)
-                    # print("see scratch[tpos_scratch_idx - sub - 1]", self.enc.decode([scratch[tpos_scratch_idx - sub - 1]]).replace("\n", "\\n"))
-                    if sof or scratch[tpos_scratch_idx - sub - 1] == self.enc.LF:
-                        good, real_delends = self._lookahead_ignoring_tpos(scratch, tpos_scratch_idx - sub, e.todel)
-                        # print(lf_skipped, e.shift, sub, "good%i" % good, self.enc.decode(e.todel).replace("\n", "\\n"))
-                        if good:
-                            candidates.append( (abs(lf_skipped - e.shift), tpos_scratch_idx - sub, real_delends) )
-                        lf_skipped += 1
-                    if sof:
-                        break
-                    if lf_skipped > TPOS_HIGH_WATER:
-                        break
-                    sub += 1
-                candidates.sort()
-                # print("candidates", str(candidates))
-                if len(candidates) == 0:
-                    self.errors.append("Cannot apply chunk %i, cannot find todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift))
-                    continue
+    def edit_location_find(self, us: UntokenizeState, ie: int, e: Edit) -> int:
+        fn = e.fn
+        if e.error:
+            return -1
+        orig = self.orig_withpos[fn]
+        try:
+            orig_i = orig.index(e.tpos)
+        except ValueError:
+            e.error = "Cannot apply chunk %i, position token %s not found" % (ie, self.enc.decode([e.tpos]), fn)
+            return -1
+        try:
+            tpos_scratch_idx = us.orig2scratch[fn].index(orig_i)
+        except ValueError:
+            e.error = "Cannot apply chunk %i, position token %s found at %i, but it's not in the scratch map" % (ie, self.enc.decode([e.tpos]), orig_i)
+            return -1
+        lf_skipped = 0
+        candidates = []
+        sub = 0
+        scratch = us.scratch[fn]
+        incomplete_todel = e.todel
+        if len(incomplete_todel) <= 1 and e.shift == -1:
+            return -1
+        if e.real_cursor == -1:
+            # search
+            while 1:
+                sof = (tpos_scratch_idx - sub == 0)
+                if sof or scratch[tpos_scratch_idx - sub - 1] == self.enc.LF:
+                    good, real_delends = self._lookahead_ignoring_tpos(scratch, tpos_scratch_idx - sub, e.todel)
+                    score = 0
+                    if good:
+                        if e.shift != -1:
+                            score = abs(lf_skipped - e.shift)
+                        else:
+                            score = 0
+                        candidates.append( (score, tpos_scratch_idx - sub, real_delends) )
+                    # print(
+                    #     "ie=%i" % ie,
+                    #     "sub=%i" % sub,
+                    #     "lookahead '%s'" % self.enc.decode(e.todel).replace("\n", "\\n"),
+                    #     "trying '%s'" % termcolor.colored(self.enc.decode(scratch[tpos_scratch_idx - sub : tpos_scratch_idx - sub + len(e.todel)]).replace("\n", "\\n"), "green"),
+                    #     "good", termcolor.colored(good, "green" if good else "red"),
+                    #     "score", score)
+                    lf_skipped += 1
+                if sof:
+                    break
+                if lf_skipped > TPOS_HIGH_WATER:
+                    break
+                sub += 1
+            candidates.sort()
+            if e.shift != -1 and len(candidates) == 0:
+                e.error = "Cannot apply chunk %i, cannot find todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift)
+                return -1
+            if len(candidates) == 1 or (e.shift != -1 and len(candidates) > 0):
                 fuzzy, e.real_cursor, e.real_delends = candidates[0]
-                stats["fuzzy"] += fuzzy
-                if fuzzy:
-                    print("chunk%i fuzzy" % ie, fuzzy)
-                    # assert not 'fuzzy'
-                good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
-                assert good
-            for ie, e in enumerate(fn_edits):
-                scratch[e.real_cursor:e.real_delends] = e.toins
-                orig2scratch[e.real_cursor:e.real_delends] = [-1] * len(e.toins)
-                # print("APPLIED", ie)
-                for fe in fn_edits[ie+1:]:
-                    if fe.real_cursor == -1:
-                        continue
-                    if fe.real_cursor > e.real_cursor:
-                        shift_ahead = -(e.real_delends - e.real_cursor) + len(e.toins)
-                        fe.real_cursor += shift_ahead
-                        fe.real_delends += shift_ahead
-                        # print("SHIFT", shift_ahead)
-                    # good, _ = self._lookahead_ignoring_tpos(scratch, fe.real_cursor, fe.todel)
-                    # assert good
-                chunks_this_file += 1
-            stats["chunks_applied"] += chunks_this_file
-            if chunks_this_file == 0:
-                stats["files_unchanged"] += 1
+                return fuzzy
+            return -1
+        else:
+            # no need to search, confirm existing
+            good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
+            if not good:
+                e.error = "Cannot apply chunk %i, cannot confirm todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift)
             else:
-                stats["files_patched"] += 1
+                e.real_delends = e.real_cursor + len(e.todel)
+        return -1
+
+    def edit_apply(self, us: UntokenizeState, ie: int, e: Edit):
+        assert e.fn in us.scratch
+        scratch = us.scratch[e.fn]
+        orig2scratch = us.orig2scratch[e.fn]
+        assert e.real_cursor != -1
+        for future_edit in self.edits[ie+1:]:
+            if future_edit.real_cursor == -1:
+                continue
+            if future_edit.fn != e.fn:
+                continue
+            if future_edit.error:
+                continue
+            if future_edit.real_cursor > e.real_cursor:
+                shift = -(e.real_delends - e.real_cursor) + len(e.toins)
+                future_edit.real_cursor += shift
+                future_edit.real_delends += shift
+        good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
+        assert good
+        scratch[e.real_cursor:e.real_delends] = e.toins
+        orig2scratch[e.real_cursor:e.real_delends] = [-1] * len(e.toins)
+        us.stats["chunks_applied"] += 1
+
+    def apply_edits_return_dest(self, us: UntokenizeState):
+        fn_unchanged = set(fn for fn in us.scratch)
+        fn_changed = set()
+        for ie, e in enumerate(self.edits):
+            # print("\napply %i" % ie)
+            if e.shift == -1:
+                # unfinished chunk, nothing we can do
+                continue
+            if e.error:
+                # print("error '%s'" % e.error)
+                continue
+            assert e.fuzzy != -1
+            us.stats["fuzzy"] += e.fuzzy
+            if e.fuzzy:
+                print("chunk%i fuzzy" % ie, e.fuzzy)
+            self.edit_apply(us, ie, e)
+            fn_changed.add(e.fn)
+        fn_unchanged -= fn_changed
+        for fn, scratch in us.scratch.items():
             while len(scratch) and (scratch[-1] in [self.enc.ESCAPE, self.enc.DIAMOND] or self.enc.is_tpos(scratch[-1])):
                 scratch.pop(-1)
             self.dest_tokens[fn] = [int(t) for t in scratch if not self.enc.is_tpos(t)]
-        stats["errors"] = len(self.errors)
-        return stats
+        us.stats["errors"] = len(self.errors)
+        us.stats["files_unchanged"] = len(fn_unchanged)
+        us.stats["files_patched"] = len(fn_changed)
+        return self.dest_tokens
 
 
 test_orig = """
@@ -796,6 +835,7 @@ example_odm = {
     "commitmsg": "fix typo",
 }
 
+
 # A longer example to test file cutting
 example_odm = {
     "orig": {"courses/views.py": "from django.shortcuts import render\nfrom django.views.generic import ListView, DetailView, View\nfrom .models import Course, Lesson\n\n\nclass CourseListView(ListView):\n    model = Course\n\n\nclass CourseDetailView(DetailView):\n    model = Course\n\n\nclass LessonDetailView(View):\n\n    def get(self, request, course_slug, lesson_slug, *args, **kwargs):\n        course_qs = Course.objects.filter(slug=course_slug)\n        if course_qs.exists():\n            course = course_qs.first()\n        lesson_qs = course.lessons.filter(slug=lesson_slug)\n        if lesson_qs.exists():\n            lesson = lesson_qs.first()\n        context = {\n            'object': lesson\n        }\n\n        return render(request, \"courses/lesson_detail.html\", context)\n"},
@@ -804,24 +844,18 @@ example_odm = {
 }
 
 
-def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int):
+def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
     test1 = ContrastDiff(enc)
     for stochastic_tokens in [0.00]:
-        orig_tokens = test1.from_odm_dict(odm, n_ctx,
-            contrast_bridgeshort0=1000,
-            contrast_bridgeshort1=1000,
-            contrast_expand_prob_left=1,
-            contrast_expand_prob_right=1,
-            contrast_expand_upto=0,
-            contrast_stochastic_tokens=stochastic_tokens,
+        full_orig_tokens = test1.from_odm_dict(odm, n_ctx,
+            tight_shrink=tight_shrink,
         )
-        # random.shuffle(test1.edits)
         test1.write_edits()
         if verbose:
             print("stochastic_tokens=%0.1f%% => %i tokens" % (stochastic_tokens * 100, len(test1.r)))
     if len(test1.r) > 2*n_ctx:
         # Don't test because likely there will not be enough position tokens anyway
-        return
+        return {}
     edit_classes = test1.edit_class_vector()
     if verbose:
         print(enc.editclass_print(test1.r, test1.m, edit_classes))
@@ -829,7 +863,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int):
     test2 = ContrastDiff(enc)
     test_odm_nodest = copy.deepcopy(odm)
     del test_odm_nodest["dest"]
-    test2.untokenize(test1.r, orig_tokens)
+    us = test2.untokenize(test1.r, full_orig_tokens)
     e1 = test1.dump_edits()
     e2 = test2.dump_edits()
     if verbose:
@@ -841,7 +875,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int):
                 return i
         return -1
     assert e1 == e2, ("len(test1.r)==%i" % len(test1.r)) + "\n" + e1 + "\n" + e2 + "\n\nfirst_different_symbol_e1_e2=%i" % first_different_symbol_e1_e2()
-    stats = test2.apply_edits(orig_tokens)
+    test2.apply_edits_return_dest(us)
     for err in test2.errors:
         print("ERROR:", err)
     for fn in test1.dest_tokens.keys():
@@ -859,14 +893,14 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int):
                 lineterm="",
             ))
             print("\n".join(udiff))
-            print(json.dumps(stats))
+            print(json.dumps(us.stats))
             assert 0, len(udiff)
     if verbose:
-        print(json.dumps(stats))
-    return stats
+        print(json.dumps(us.stats))
+        print("diff.r", len(test1.r))
+    return us.stats
 
 
 if __name__ == "__main__":
     enc = Encoding("openai_programming_v2")
-    self_test(enc, example_odm, verbose=True, n_ctx=490)
-
+    self_test(enc, example_odm, verbose=True, n_ctx=2049)
