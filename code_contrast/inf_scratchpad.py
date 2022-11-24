@@ -1,14 +1,16 @@
-import termcolor
-from typing import Set
 import torch as th
-import code_contrast as bpe_encoding
+import termcolor
+
 from code_contrast import log
+from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
+
+from typing import Set
 
 
 class ScratchpadBase:
     def __init__(self,
-                 enc: bpe_encoding.Encoding,
+                 enc: Encoding,
                  id: str,
                  temperature,
                  max_tokens,

@@ -1,12 +1,13 @@
-from typing import List
-import code_contrast as bpe_encoding
-from code_contrast import inf_scratchpad
 from code_contrast import log
+from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
+from code_contrast.inf_scratchpad import ScratchpadBase
+
+from typing import List
 
 
-class ScratchpadCompletion(inf_scratchpad.ScratchpadBase):
-    def __init__(self, enc: bpe_encoding.Encoding, prompt, **kwargs):
+class ScratchpadCompletion(ScratchpadBase):
+    def __init__(self, enc: Encoding, prompt, **kwargs):
         super().__init__(enc, **kwargs)
         self._tokens: List[int] = []
         self._prompt = prompt

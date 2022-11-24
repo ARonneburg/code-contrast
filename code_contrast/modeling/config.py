@@ -41,30 +41,9 @@ class Config:
 
     @property
     def encoding(self):
-        from code_contrast import Encoding
+        from code_contrast.encoding import Encoding
         return Encoding(self.enc_name)
 
     @property
     def mup(self) -> bool:
         return self._mup
-
-    @mup.setter
-    def mup(self, val: bool):
-        from lean_former.mup import get_mup_information
-        if val:
-            maybe_info = get_mup_information(self)
-            if not maybe_info:
-                raise RuntimeError(f'No matching MUP layout has found for the following model hps')
-            self._mup = True
-            mup_shapes_file, self.mup_optimal_lr = maybe_info
-            self.mup_shapes_file = os.path.relpath(mup_shapes_file, os.path.join(os.path.dirname(__file__), ".."))
-        else:
-            self._mup = False
-            self.mup_shapes_file = None
-            self.mup_optimal_lr = None
-
-    def set_mup_manually(self, mup_shapes_file: str, mup_optimal_lr: float):
-        assert os.path.exists(self.mup_shapes_file)
-        self._mup = True
-        self.mup_shapes_file = mup_shapes_file
-        self.mup_optimal_lr = mup_optimal_lr

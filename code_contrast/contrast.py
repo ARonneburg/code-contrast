@@ -1,11 +1,18 @@
-import difflib, random, copy, json
-from code_contrast import Encoding
-from typing import List, Dict, Tuple, DefaultDict, Any, Set
+import random
+import copy
+import json
+import termcolor
+
+import difflib
+from cdifflib import CSequenceMatcher
+
+from code_contrast.encoding import Encoding
+from code_contrast.contrast_stochastic import ops_remove_short_equals, ops_stochastic_expand
+
 from collections import defaultdict
 from dataclasses import dataclass
-import termcolor
-from code_contrast.contrast_stochastic import ops_remove_short_equals, ops_stochastic_expand
-from cdifflib import CSequenceMatcher
+
+from typing import List, Dict, Tuple, DefaultDict, Any, Set
 
 
 OFFSET_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"

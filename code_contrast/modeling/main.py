@@ -1,4 +1,4 @@
-from code_contrast.modeling import CodifyModel
+from code_contrast.modeling.codify_model import CodifyModel
 import torch
 _models = {
     'codify-medium': 'https://hug.....'

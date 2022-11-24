@@ -1,7 +1,9 @@
-import termcolor
-import difflib, random
 import copy
-from code_contrast import Encoding
+import random
+import difflib
+import termcolor
+
+from code_contrast.encoding import Encoding
 
 
 text_a = """#hmm

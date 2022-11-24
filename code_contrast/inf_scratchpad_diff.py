@@ -1,21 +1,24 @@
-import termcolor, time
-from typing import Dict, Optional
 import torch as th
+import time
+import termcolor
 
-import code_contrast as bpe_encoding
-from code_contrast import inf_scratchpad
-from code_contrast import contrast
 from code_contrast import log
+from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
+
+from code_contrast import contrast
+from code_contrast.inf_scratchpad import ScratchpadBase
+
+from typing import Dict, Optional
 
 
 DIFF_FIRST_TPOS, DIFF_CHUNKS_GEN = range(2)
 HL_METHOD3_THRESHOLD = 0.45
 
 
-class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
+class ScratchpadDiff(ScratchpadBase):
     def __init__(self,
-                 enc: bpe_encoding.Encoding,
+                 enc: Encoding,
                  intent: str,
                  cursor_file: str,
                  cursor0: int,
@@ -62,7 +65,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                 logits_intrusion[tpos] = +4.5
         if (
             self.diff_out_us is not None and
-            self.diff_out_us.state==contrast.DEL and
+            self.diff_out_us.state == contrast.DEL and
             self.diff_out_us.brewing_edit.real_cursor != -1 and
             self.diff_out_us.brewing_edit.fn == self.cursor_file
         ):
@@ -74,11 +77,12 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                 log("todel:", termcolor.colored(self.enc.decode(scratch[e.real_cursor:e.real_delends]), "yellow"))
                 beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
                 if beyond_selection >= -1:
-                    extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends] if t == self.enc.LF])
+                    extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends]
+                                          if t == self.enc.LF])
                     if extra_newlines >= 0:
                         logits_intrusion[self.enc.ESCAPE] = 3.0 + 0.5 * extra_newlines
                 # edit works like this: scratch[e.real_cursor:e.real_delends] = e.toins
-        a = inf_scratchpad.ScratchpadBase.new_token(self, m, b, logits, heads, logits_intrusion)
+        a = ScratchpadBase.new_token(self, m, b, logits, heads, logits_intrusion)
         # a is int, no shape
         t = a.item()
         self.diff.r.append(t)
@@ -115,18 +119,22 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
     def diff_out_catch_up(self):
         if self.diff_out_us is None:
             return
+
         def finish(reason):
             self.finish_reason = reason
             self.diff_out_us.eot = True
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
+
         try:
             while self.diff_out_cursor < len(self.diff.r):
                 t = self.diff.r[self.diff_out_cursor]
-                if t==self.enc.EOT:
+                if t == self.enc.EOT:
                     finish("eot")
                     break
                 self.diff_out.untokenize_new_token(self.diff_out_us, t, self.diff_out_cursor)
-                if self.max_edits >= 0 and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits and self.diff_out_us.state == contrast.CHUNK:
+                if self.max_edits >= 0 \
+                        and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits \
+                        and self.diff_out_us.state == contrast.CHUNK:
                     finish("max-edits")
                     break
                 if self.diff_out_cursor >= self.no_stop_tokens_until and self.diff_out_us.state == contrast.INS:
@@ -331,7 +339,8 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             termcolor.colored("|", "green") +
             termcolor.colored(self.enc.decode(tokens2[self.t_cursor1:]), "yellow")
             )
-        self.selected_newlines = len([t for t in self.cursorfile_tokens2[self.t_cursor0:self.t_cursor1] if t == self.enc.LF])
+        self.selected_newlines = len([t for t in self.cursorfile_tokens2[self.t_cursor0:self.t_cursor1]
+                                      if t == self.enc.LF])
 
     def _find_cursor_in_tokens(self, cursor):
         tokens1, tokens2, map2to1 = self.cursorfile_tokens1, self.cursorfile_tokens2, self.cursorfile_map2to1
@@ -357,7 +366,8 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             if self.enc.is_tpos(tokens2[c]):
                 return result, c
             c += 1
-        log("Cannot find cursor position in area covered by position tokens. This indicates a wrong way to cut the file top/bottom.")
+        log("Cannot find cursor position in area covered by position tokens. "
+            "This indicates a wrong way to cut the file top/bottom.")
         return result, 0
 
     def _fn_create_map2to1(self, fn):
@@ -417,6 +427,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
         inside_purple = False
         starts16 = -1
         ends16 = -1
+
         def no_longer_16():
             nonlocal starts16, ends16
             if starts16 == -1:
@@ -426,6 +437,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             self.highlight16.append((len(tmp1), len(tmp2), 0.15))
             starts16 = -1
             ends16 = -1
+
         for ti in range(start, end):
             if self.diff.r[ti] == self.enc.ESCAPE:
                 break

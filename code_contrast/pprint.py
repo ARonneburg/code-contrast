@@ -3,7 +3,7 @@ import termcolor
 from itertools import groupby
 from typing import List, Iterable, Tuple
 
-from code_contrast import Encoding
+from code_contrast.encoding import Encoding
 
 
 __all__ = ["hlprint", "editclass_print"]
