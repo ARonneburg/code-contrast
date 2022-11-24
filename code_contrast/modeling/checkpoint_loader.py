@@ -4,7 +4,7 @@ from pathlib import Path
 from cloudpickle import load
 
 # from huggingface_hub import hf_hub_download
-from modeling.config import Config
+from code_contrast.modeling.config import Config
 
 _model_hps = 'model-hps.json'
 

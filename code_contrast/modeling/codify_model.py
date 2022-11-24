@@ -3,10 +3,10 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
-from modeling.attention import MultiheadSelfAttention
-from modeling.block import Block
-from modeling.checkpoint_loader import load_config, load_checkpoint
-from modeling.generation import generate
+from code_contrast.modeling.attention import MultiheadSelfAttention
+from code_contrast.modeling.block import Block
+from code_contrast.modeling.checkpoint_loader import load_config, load_checkpoint
+from code_contrast.modeling.generation import generate
 
 
 class CodifyModel(nn.Module):
@@ -42,6 +42,7 @@ class CodifyModel(nn.Module):
                 attention_mask: Optional[torch.Tensor],
                 past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
                 use_cache: Optional[bool] = False):
+
         hidden_states = self.wte(x)
 
         presents = () if use_cache else None
@@ -59,7 +60,10 @@ class CodifyModel(nn.Module):
         return hidden_states, presents
 
     def lm_forward(self, hidden_states):
-        return self.lm_head(self.ln_f(hidden_states))
+        hidden_states_normed = self.ln_f(hidden_states)
+        hidden_states_norm = hidden_states_normed / 2.0
+        logits = self.lm_head(hidden_states_norm)
+        return logits
 
     def highlight_forward(self, x_bte, first_bt, diffhlpoint):
         B, T, E = x_bte.shape

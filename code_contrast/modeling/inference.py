@@ -72,7 +72,8 @@ def generate_scratchpad(model: torch.nn.Module,
                        attention_mask=attention_mask,
                        past_key_values=past_key_values,
                        use_cache=use_cache)
-        logits, past_key_values = output
+        hidden_states, past_key_values = output
+        logits = model.lm_forward(hidden_states)
 
         next_tokens = scratchpad.new_token(model, 0, logits[:, -1, :encoder.n_vocab], past_key_values).unsqueeze(0)
         input_ids = torch.cat([input_ids, next_tokens], dim=-1)
@@ -181,7 +182,7 @@ if __name__ == "__main__":
     #
     # uvicorn.run(app, host="127.0.0.1", port=8008)
 
-    predictor = Predictor(weights="/home/mitya/model_weights")
+    predictor = Predictor(weights='gs://small-storage1/checkpoints/Diffs-v0/11-mix10-medium-tposaft-lr50/000300000/')
     # call = {
     #     "model": "CONTRASTcode/medium",
     #     "prompt": "import numpy as np\n\ndef hello_world_in_numpy():\n",
@@ -208,7 +209,7 @@ if __name__ == "__main__":
         'model': 'CONTRASTcode/stable',
         'sources': {'test.py': "def print_hello(times: int):\n    \n    \nif __name__ == '__main__':\n    print_hello()\n\n\n    \n"},
         'intent': 'Infill',
-        'function': 'infill',
+        'function': 'completion',
         'cursor_file': 'test.py',
         'cursor0': 33,
         'cursor1': 33,

@@ -34,9 +34,14 @@ def _temperature_top_k_top_p_filtering(logits,
 
 
 def _make_mask(seq_len: int, past_key_values_length: int, device: torch.device):
-    mask = torch.ones((seq_len, seq_len + past_key_values_length), dtype=torch.bool, device=device)
-    mask = torch.triu(mask, 1)
+    # prompt
+    if past_key_values_length == 0:
+        mask = torch.ones((seq_len, seq_len + past_key_values_length), dtype=torch.bool, device=device)
+        mask = torch.triu(mask, 1)
+    else:
+        mask = torch.zeros((seq_len, seq_len + past_key_values_length), dtype=torch.bool, device=device)
     return mask
+
 
 
 def generate(model: torch.nn.Module,

@@ -1,6 +1,13 @@
+import math
+
 import torch
-import torch.nn.functional as F
 from torch import nn
+
+_kAlpha = math.sqrt(2.0 / math.pi)
+
+
+def gelu(x):
+    return 0.5 * x * (1 + torch.tanh(_kAlpha * (x + 0.044715 * x * x * x)))
 
 
 class MLP(nn.Module):
@@ -11,6 +18,6 @@ class MLP(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.ln_1(x)
-        x = F.gelu(x)
+        x = gelu(x)
         x = self.ln_2(x)
         return x

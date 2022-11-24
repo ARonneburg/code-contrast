@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from modeling.alibias import ALiBiBias
+from code_contrast.modeling.alibias import ALiBiBias
 
 
 class MultiheadSelfAttention(nn.Module):
@@ -37,13 +37,14 @@ class MultiheadSelfAttention(nn.Module):
                   value: torch.Tensor,
                   attention_mask: Optional[torch.Tensor]):
         attn_weights = torch.matmul(query * self.scale, key.transpose(-1, -2))
-        attn_weights = attn_weights + self.alibias(query.shape[0],
-                                                   query.shape[2],
-                                                   key.shape[2],
-                                                   query.device,
-                                                   query.dtype)
+        alibi = self.alibias(query.shape[0],
+                             query.shape[2],
+                             key.shape[2],
+                             query.device,
+                             query.dtype)
+        attn_weights = attn_weights + alibi
         if attention_mask is not None:
-            attn_weights = torch.masked_fill(attn_weights, attention_mask, torch.finfo(attn_weights.dtype).min)
+            attn_weights = torch.masked_fill(attn_weights, attention_mask, -10000)
 
         attn_weights = F.softmax(attn_weights, dim=-1)
         out = torch.matmul(attn_weights, value)
