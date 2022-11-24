@@ -1,6 +1,7 @@
 from typing import List
 import code_contrast as bpe_encoding
 from code_contrast import inf_scratchpad
+from code_contrast import log
 from code_contrast.pprint import hlprint
 
 
@@ -27,9 +28,9 @@ class ScratchpadCompletion(inf_scratchpad.ScratchpadBase):
         #self._tokens = [2] + self.enc.encode(self.call["prompt"])
         assert len(self._tokens) == 0
         self._tokens = self.enc.encode(self._prompt)
-        print("---------- prompt ----------")
-        print(hlprint(self._tokens, self.enc))
-        print("---------- /prompt ----------")
+        log("---------- prompt ----------")
+        log(hlprint(self._tokens, self.enc))
+        log("---------- /prompt ----------")
         if len(self._tokens) > T:
             return []
         return self._tokens

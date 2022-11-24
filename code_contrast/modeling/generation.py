@@ -68,7 +68,8 @@ def generate(model: torch.nn.Module,
                        attention_mask=attention_mask,
                        past_key_values=past_key_values,
                        use_cache=use_cache)
-        logits, past_key_values = output
+        hidden_state, past_key_values = output
+        logits = model.lm_forward(hidden_state)
         last_logits = _temperature_top_k_top_p_filtering(logits[:, -1],
                                                          temperature=temperature,
                                                          top_k=top_k,

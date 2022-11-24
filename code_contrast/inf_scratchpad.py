@@ -2,6 +2,7 @@ import termcolor
 from typing import Set
 import torch as th
 import code_contrast as bpe_encoding
+from code_contrast import log
 from code_contrast.pprint import hlprint
 
 
@@ -33,9 +34,9 @@ class ScratchpadBase:
             if len(t) == 1:
                 self.stop_tokens.add(t[0])
             else:
-                print("ScratchpadBase: cannot use '%s' as a stop token" % s)
+                log("ScratchpadBase: cannot use '%s' as a stop token" % s)
         for k, v in unused.items():
-            print("ScratchpadBase: unused parameter '%s' = '%s'" % (k, v))
+            log("ScratchpadBase: unused parameter '%s' = '%s'" % (k, v))
         self.generated_tokens_n = 0
         self.needs_upload = False
 
@@ -45,7 +46,7 @@ class ScratchpadBase:
         else:
             if logits_intrusion:
                 for t, add in logits_intrusion.items():
-                    print("logit for %s is %0.3f, adding %0.3f" % (
+                    log("logit for %s is %0.3f, adding %0.3f" % (
                         hlprint([t], self.enc),
                         logits[-1, t],
                         add))
@@ -63,7 +64,7 @@ class ScratchpadBase:
                 i = i.item()
                 explain += " %i \"%s\"" % (i, termcolor.colored(self.enc.decode([i]).replace("\n", "\\n").replace("\r", "\\r"), "yellow"),)
                 explain += " %0.1f%%" % (100*probs[0, i].item())
-            print("top3: %s" % explain)
+            log("top3: %s" % explain)
         return a
 
     def toplevel_fields(self):

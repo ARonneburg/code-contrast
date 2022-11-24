@@ -131,3 +131,8 @@ class Encoding:
             if i > 0:
                 tokens = tokens[:i]
         return self._tokenizer.decode(tokens)
+
+
+def log(*args, **kwargs):
+    # print(*args, **kwargs)
+    pass

@@ -89,5 +89,5 @@ class CodifyModel(nn.Module):
                     t2 += 1
                 # fill rectangle on main diagonal
                 mask_BTT[b, t1:t2, t1:t2] = 1
-        inside, _state = self.bidir_sa.forward(self.bidir_sa_ln(x_bte), mask_BTT)
+        inside, _state = self.bidir_sa.forward(self.bidir_sa_ln(x_bte), mask_BTT, None)
         return inside

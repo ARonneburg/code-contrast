@@ -5,6 +5,7 @@ import torch as th
 import code_contrast as bpe_encoding
 from code_contrast import inf_scratchpad
 from code_contrast import contrast
+from code_contrast import log
 from code_contrast.pprint import hlprint
 
 
@@ -70,7 +71,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             if self.tpos_cursor1 != -1:
                 tokens2 = self.cursorfile_tokens2
                 assert all(tokens2[i] == scratch[i] for i in range(len(tokens2)))
-                print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_cursor:e.real_delends]), "yellow"))
+                log("todel:", termcolor.colored(self.enc.decode(scratch[e.real_cursor:e.real_delends]), "yellow"))
                 beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
                 if beyond_selection >= -1:
                     extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends] if t == self.enc.LF])
@@ -99,10 +100,10 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             result = {}
             for fn in dest_tokens:
                 result[fn] = self.enc.decode(self.diff_out.dest_tokens[fn])
-            print(self.diff_out_us.stats, self.finish_reason)
+            log(self.diff_out_us.stats, self.finish_reason)
             return result
         elif final:
-            print("ScratchpadDiff: nothing useful available :/")
+            log("ScratchpadDiff: nothing useful available :/")
             return None
         else:
             return None
@@ -142,7 +143,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                         break
                 self.diff_out_cursor += 1
         except contrast.DecodeError as e:
-            print("Exception in diff_out.untokenize_new_token: %s" % e)
+            log("Exception in diff_out.untokenize_new_token: %s" % e)
             self.diff_out_us.eot = True
             self.finish_reason = "diff-application-error"
 
@@ -191,13 +192,13 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             else:
                 continue
             self.odm["orig"][fn] = text
-            print(fn, "revision", revision)
-            print("EDIT CHAIN BASE", text)
+            log(fn, "revision", revision)
+            log("EDIT CHAIN BASE", text)
         for fn, text in self.sources.items():
             if ":" in fn:
                 continue
             self.odm["dest"][fn] = text
-            print("EDIT CHAIN DEST", text)
+            log("EDIT CHAIN DEST", text)
         self.orig_tokens = self.diff.from_odm_dict(
             self.odm,
             n_ctx=(T - self.max_tokens),
@@ -237,7 +238,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             return
         if self.selected_newlines in [0, 1]:
             # selected single line or atcursor, write most of the chunk immediately
-            print("X"*80)
+            log("X"*80)
             self.max_edits = 1
             # tpos = self.cursorfile_tokens2[self.tpos_cursor0]
             # assert self.enc.is_tpos(tpos)
@@ -257,7 +258,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             while 1:
                 t = self.cursorfile_tokens2[i]
                 if self.enc.is_tpos(t):
-                    print("diff-selection increase logits", hlprint([t], self.enc))
+                    log("diff-selection increase logits", hlprint([t], self.enc))
                     self.increase_logits.append(t)
                     if over: break
                 if i >= self.t_cursor1:
@@ -287,9 +288,9 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             self.prompt_edit_chain(T)
         else:
             self.prompt_normal_diff(T)
-        print("PACKING T=%i len(diff.r)=%i" % (T, len(self.diff.r)))
+        log("PACKING T=%i len(diff.r)=%i" % (T, len(self.diff.r)))
         if len(self.diff.r) >= T:
-            print("PACKING FAILED\n")
+            log("PACKING FAILED\n")
             return []
         self.no_stop_tokens_until = len(self.diff.r)
         if self.diff_out is None:
@@ -308,9 +309,9 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
         # elif self.function == "diff-selection":
         # elif self.function == "infill":
         t1 = time.time()
-        print("---------- prompt ----------")
-        print(hlprint(self.diff.r, self.enc))
-        print("---------- /prompt %0.1fms ----------" % (1000*(t1 - t0)))
+        log("---------- prompt ----------")
+        log(hlprint(self.diff.r, self.enc))
+        log("---------- /prompt %0.1fms ----------" % (1000*(t1 - t0)))
         return self.diff.r
 
     def _find_selection_in_tokens(self):
@@ -323,7 +324,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             assert len(map2to1) == len(tokens2)
         self.t_cursor0, self.tpos_cursor0 = self._find_cursor_in_tokens(self.cursor0)
         self.t_cursor1, self.tpos_cursor1 = self._find_cursor_in_tokens(self.cursor1)
-        print(
+        log(
             termcolor.colored(self.enc.decode(tokens2[:self.t_cursor0]), "yellow") +
             termcolor.colored("|", "green") +
             termcolor.colored(self.enc.decode(tokens2[self.t_cursor0:self.t_cursor1]), "red") +
@@ -356,7 +357,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
             if self.enc.is_tpos(tokens2[c]):
                 return result, c
             c += 1
-        print("Cannot find cursor position in area covered by position tokens. This indicates a wrong way to cut the file top/bottom.")
+        log("Cannot find cursor position in area covered by position tokens. This indicates a wrong way to cut the file top/bottom.")
         return result, 0
 
     def _fn_create_map2to1(self, fn):
@@ -454,7 +455,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                 if starts16 == -1:
                     starts16 = tokens0pos
                 ends16 = tokens1pos
-            traces.log(
+            log(
                 "%-60s" % (self.enc.decode(self.diff.r[prev_lf+1:ti+1]).replace("\n", "\\n")),
                 termcolor.colored(
                     " %0.1f%% %0.1f%% %0.1f%%" % (100*p0, 100*p1, 100*p2),
@@ -466,7 +467,7 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                     jp0 = float(probs[tj][0].item())
                     jp1 = float(probs[tj][1].item())
                     jp2 = float(probs[tj][2].item())
-                    print(
+                    log(
                         termcolor.colored(
                             "  %-20s" % (self.enc.decode(self.diff.r[tj:tj+1]).replace("\n", "\\n")),
                             "blue"),
@@ -486,4 +487,4 @@ class ScratchpadDiff(inf_scratchpad.ScratchpadBase):
                         # self.highlight.extend(self.enc.decode(tokens1[:tokens1pos]))
         no_longer_16()
         t2 = time.time()
-        print("highlight_method4 calc %0.2fs tokens %0.2fs" % (t1-t0, t2-t1))
+        log("highlight_method4 calc %0.2fs tokens %0.2fs" % (t1-t0, t2-t1))
