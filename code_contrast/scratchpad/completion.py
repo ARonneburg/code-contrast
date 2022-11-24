@@ -1,7 +1,7 @@
 from code_contrast import log
 from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
-from code_contrast.inf_scratchpad import ScratchpadBase
+from code_contrast.scratchpad.base import ScratchpadBase
 
 from typing import List
 
@@ -15,7 +15,7 @@ class ScratchpadCompletion(ScratchpadBase):
     def new_token(self, m, b, logits, heads, logits_intrusion=dict()):
         a = super().new_token(m, b, logits, heads, logits_intrusion)
         ai = a.item()
-        if ai==self.enc.EOT:
+        if ai == self.enc.EOT:
             self.finish_reason = "eot"
         if ai in self.stop_tokens:
             self.finish_reason = "stoptoken"

@@ -10,8 +10,8 @@ from pydantic import BaseModel, Required
 
 from code_contrast import log
 from code_contrast.pprint import hlprint
-from code_contrast.inf_scratchpad_diff import ScratchpadDiff
-from code_contrast.inf_scratchpad_completion import ScratchpadCompletion
+from code_contrast.scratchpad.diff import ScratchpadDiff
+from code_contrast.scratchpad.completion import ScratchpadCompletion
 from code_contrast.modeling.codify_model import CodifyModel
 
 from typing import Optional, Union, Dict, Any, List, Iterable

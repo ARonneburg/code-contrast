@@ -6,8 +6,8 @@ from code_contrast import log
 from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
 
-from code_contrast import contrast
-from code_contrast.inf_scratchpad import ScratchpadBase
+from code_contrast.scratchpad import contrast
+from code_contrast.scratchpad.base import ScratchpadBase
 
 from typing import Dict, Optional
 
