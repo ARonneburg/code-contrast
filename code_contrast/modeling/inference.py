@@ -4,6 +4,7 @@ import torch
 import time
 import traceback
 import termcolor
+from uuid import uuid4
 
 from pydantic import BaseModel, Required
 
@@ -22,11 +23,13 @@ from fastapi.responses import StreamingResponse
 
 
 class NlpSamplingParams(BaseModel):
+    model: str = Query(default=Required, regex="^[a-z/A-Z0-9_]+$")
     max_tokens: int = 50
     temperature: float = 0.7
     top_p: float = 1.0
     top_n: int = 0
     stop: Union[List[str], str] = []
+    stream: bool = False
 
     def clamp(self):
         def _clamp(a, b, x):
@@ -44,18 +47,21 @@ class NlpSamplingParams(BaseModel):
         }
 
 
+class TextCompletion(NlpSamplingParams):
+    prompt: str
+
+
 class DiffCompletion(NlpSamplingParams):
-    model: str = Query(default=Required, regex="^[a-z/A-Z0-9_]+$")
     intent: str
     sources: Dict[str, str]
     cursor_file: str
     cursor0: int
     cursor1: int
     function: str = Query(
-        default=Required, regex="^(highlight|infill|diff-anywhere|diff-atcursor|diff-selection|edit-chain)$"
+        default=Required,
+        regex="^(highlight|infill|diff-anywhere|diff-atcursor|diff-selection|edit-chain)$"
     )
     max_edits: int = 4
-    stream: bool = False
 
 
 def print_tensor(tensor: torch.Tensor):
@@ -191,8 +197,7 @@ class Predictor:
         }
 
 
-async def diff_streamer(request: Dict[str, Any],
-                        predictor: Predictor):
+async def streamer(request: Dict[str, Any], predictor: Predictor):
     try:
         stream = request["stream"]
         for response in predictor(request, stream):
@@ -212,6 +217,18 @@ if __name__ == "__main__":
     predictor = Predictor(weights="/home/mitya/model_weights")
     app = FastAPI(docs_url=None)
 
+    @app.post("/completion")
+    async def contrast(post: TextCompletion):
+        request = post.clamp()
+        request.update({
+            "id": str(uuid4()),
+            "object": "text_completion_req",
+            "prompt": post.prompt,
+            "stop_tokens": post.stop,
+            "stream": post.stream,
+        })
+        return StreamingResponse(streamer(request, predictor))
+
     @app.post("/contrast")
     async def contrast(post: DiffCompletion):
         if post.function != "diff-anywhere":
@@ -229,13 +246,11 @@ if __name__ == "__main__":
             post.cursor0 = -1
             post.cursor1 = -1
             post.cursor_file = ""
-        from uuid import uuid4
-        req_id = str(uuid4())
         if post.function == "highlight":
             post.max_tokens = 0
-        req = post.clamp()
-        req.update({
-            "id": req_id,
+        request = post.clamp()
+        request.update({
+            "id": str(uuid4()),
             "object": "diff_completion_req",
             "intent": post.intent,
             "sources": post.sources,
@@ -247,7 +262,7 @@ if __name__ == "__main__":
             "stop_tokens": post.stop,
             "stream": post.stream,
         })
-        return StreamingResponse(diff_streamer(req, predictor))
+        return StreamingResponse(streamer(request, predictor))
 
     uvicorn.run(app, host="127.0.0.1", port=8008)
 
