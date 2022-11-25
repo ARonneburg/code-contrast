@@ -1,4 +1,5 @@
 import uvicorn
+from pathlib import Path
 from fastapi import FastAPI
 
 from api_server.routers import CompletionRouter
@@ -12,11 +13,13 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8008)
+    parser.add_argument("--weights", type=Path, default=Path("/weights"))
+    args = parser.parse_args()
 
-    inference = Inference(weights="/home/mitya/model_weights")
+    inference = Inference(weights=str(args.weights))
 
     app = FastAPI(docs_url=None)
     app.include_router(CompletionRouter(inference))
     app.include_router(ContrastRouter(inference))
 
-    uvicorn.run(app, host="127.0.0.1", port=8008)
+    uvicorn.run(app, host=args.host, port=args.port)
