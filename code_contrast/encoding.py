@@ -20,7 +20,7 @@ class Encoding:
         self.EOT = 0
         self._pos_tokens = []
 
-        filename = Path(__file__).resolve().parent.parent / "encodings" / f"{name}.json"
+        filename = Path(__file__).resolve().parent / "encodings" / f"{name}.json"
         self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
         if name == "openai_reversible50000":
             self.EOT = 50256
