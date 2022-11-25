@@ -6,7 +6,12 @@ from typing import List, Iterable, Tuple
 from code_contrast.encoding import Encoding
 
 
-__all__ = ["hlprint", "editclass_print"]
+__all__ = ["hlprint", "editclass_print", "log"]
+
+
+def log(*args, **kwargs):
+    # print(*args, **kwargs)
+    pass
 
 
 def _colored_join(sequence: Iterable[Tuple[str, str, str]]):

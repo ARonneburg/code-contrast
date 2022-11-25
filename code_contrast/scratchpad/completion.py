@@ -1,4 +1,4 @@
-from code_contrast import log
+from code_contrast.pprint import log
 from code_contrast.encoding import Encoding
 from code_contrast.pprint import hlprint
 from code_contrast.scratchpad.base import ScratchpadBase

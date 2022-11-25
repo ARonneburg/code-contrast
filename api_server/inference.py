@@ -4,10 +4,10 @@ import traceback
 import termcolor
 
 from code_contrast import log
-from code_contrast.pprint import hlprint
-from code_contrast.scratchpad.diff import ScratchpadDiff
-from code_contrast.scratchpad.completion import ScratchpadCompletion
-from code_contrast.modeling.codify_model import CodifyModel
+from code_contrast import hlprint
+from code_contrast import ScratchpadDiff
+from code_contrast import ScratchpadCompletion
+from code_contrast import CodifyModel
 
 from typing import Optional, Union, Dict, Any, Iterable
 
@@ -94,17 +94,17 @@ class Inference:
                         yield self._json_result(scratchpad, status="in_progress")
                     else:
                         yield None
-                    log("%0.2fs sampling over, result %s" % (time.time() - ts_batch_started, print_tensor(tokens)))
+                    # log("%0.2fs sampling over, result %s" % (time.time() - ts_batch_started, print_tensor(tokens)))
             assert scratchpad.finish_reason
             scratchpad.finalize()
 
-            tokens = tokens.cpu().numpy()
-            completion = tokens[len(tokens_prompt):]
-            hlcompletion = hlprint(completion, self._model.config.encoding).replace("\n", "\\n")
-            log(f"completion {completion} '{hlcompletion}'")
-            if isinstance(scratchpad, ScratchpadDiff):
-                if scratchpad.diff_out and scratchpad.diff_out.errors:
-                    log(termcolor.colored(str(scratchpad.diff_out.errors), "red"))
+            # tokens = tokens.cpu().numpy()
+            # completion = tokens[len(tokens_prompt):]
+            # hlcompletion = hlprint(completion, self._model.config.encoding).replace("\n", "\\n")
+            # log(f"completion {completion} '{hlcompletion}'")
+            # if isinstance(scratchpad, ScratchpadDiff):
+            #     if scratchpad.diff_out and scratchpad.diff_out.errors:
+            #         log(termcolor.colored(str(scratchpad.diff_out.errors), "red"))
 
             yield self._json_result(scratchpad, status="completed")
         except ...:
