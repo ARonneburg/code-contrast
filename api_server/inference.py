@@ -1,19 +1,14 @@
+import logging
+
 import torch
 import time
 import traceback
-import termcolor
 
-from code_contrast import log
-from code_contrast import hlprint
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
 from code_contrast import CodifyModel
 
 from typing import Optional, Union, Dict, Any, Iterable
-
-
-def print_tensor(tensor: torch.Tensor):
-    return "·".join(["%i" % i for i in tensor.shape]) + " " + str(tensor.dtype).replace("torch.", "")
 
 
 class Inference:
@@ -25,14 +20,29 @@ class Inference:
         self._encoding = self._model.config.encoding
 
     def _prepare(self, request: Dict[str, Any]):
+        created_ts = time.time()
+
+        def logger(*args):
+            logging.debug(args)
+
         object_type = request["object"]
         assert object_type in ["diff_completion_req", "text_completion_req"]
         if object_type == "diff_completion_req":
-            scratchpad = ScratchpadDiff(self._encoding, **request)
+            scratchpad = ScratchpadDiff(
+                enc=self._encoding,
+                logger=logger,
+                created=created_ts,
+                **request)
         else:
-            scratchpad = ScratchpadCompletion(self._encoding, **request)
+            scratchpad = ScratchpadCompletion(
+                enc=self._encoding,
+                logger=logger,
+                created=created_ts,
+                **request)
         p = scratchpad.prompt(self._model.config.T)
-        assert len(p) > 0
+        if len(p) == 0:
+            raise RuntimeError("empty tokens prompt")
+
         tokens_prompt = torch.tensor(p, device=self._device)
         return scratchpad, tokens_prompt
 
@@ -83,32 +93,21 @@ class Inference:
             scratchpad.finish_reason = "maxlen"
 
     def __call__(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
-        ts_batch_started = time.time()
-        scratchpad, tokens_prompt = self._prepare(request)
         try:
+            scratchpad, tokens_prompt = self._prepare(request)
             with torch.inference_mode():
-                tokens = None
-                for tokens in self._generate_scratchpad(tokens_prompt, scratchpad,
-                                                        max_length=request["max_tokens"]):
+                for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
                     if scratchpad.needs_upload and stream:
                         yield self._json_result(scratchpad, status="in_progress")
                     else:
                         yield None
-                    # log("%0.2fs sampling over, result %s" % (time.time() - ts_batch_started, print_tensor(tokens)))
             assert scratchpad.finish_reason
             scratchpad.finalize()
 
-            # tokens = tokens.cpu().numpy()
-            # completion = tokens[len(tokens_prompt):]
-            # hlcompletion = hlprint(completion, self._model.config.encoding).replace("\n", "\\n")
-            # log(f"completion {completion} '{hlcompletion}'")
-            # if isinstance(scratchpad, ScratchpadDiff):
-            #     if scratchpad.diff_out and scratchpad.diff_out.errors:
-            #         log(termcolor.colored(str(scratchpad.diff_out.errors), "red"))
-
             yield self._json_result(scratchpad, status="completed")
-        except ...:
-            log(traceback.format_exc())
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
             yield None
 
     @staticmethod
