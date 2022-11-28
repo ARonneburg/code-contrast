@@ -17,6 +17,7 @@ class Encoding:
         self.FILE = 0
         self.CHUNK = 0
         self.LF = 0
+        self.LFLF = 0
         self.EOT = 0
         self._pos_tokens = []
 
@@ -31,6 +32,7 @@ class Encoding:
         elif name in ["openai_programming_v2", "openai_programming_v3"]:
             self.EOT = 50256
             self.LF = 198
+            self.LFLF = 628
             self.ESCAPE = self._encode_token(" §§")
             self._pos_tokens = list(range(50281, 50281 + 1024))
             assert self.decode([self._pos_tokens[0]]) == "<XXXXX>"
