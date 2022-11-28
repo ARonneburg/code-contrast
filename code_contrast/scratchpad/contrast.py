@@ -232,7 +232,7 @@ class ContrastDiff:
                 while tinds[written_tpos] != -1:
                     written_tpos += 1
                     assert written_tpos < len(tinds)
-                assert self.enc.is_tpos(self.r[starts + written_tpos])
+                assert self.enc.is_tpos(self.r[starts + written_tpos]) or self.r[starts + written_tpos]==0
                 ahead_newlines = 0
                 for i in range(written_i1, written_tpos):
                     if self.r[starts + i] == self.enc.LF:
@@ -740,7 +740,9 @@ class ContrastDiff:
                 future_edit.real_cursor += shift
                 future_edit.real_delends += shift
         good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
-        assert good
+        if not good:
+            e.error = "cannot confirm todel tokens"
+            return
         scratch[e.real_cursor:e.real_delends] = e.toins
         orig2scratch[e.real_cursor:e.real_delends] = [-1] * len(e.toins)
         us.stats["chunks_applied"] += 1
@@ -904,3 +906,4 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
 if __name__ == "__main__":
     enc = Encoding("openai_programming_v2")
     self_test(enc, example_odm, verbose=True, n_ctx=2049)
+
