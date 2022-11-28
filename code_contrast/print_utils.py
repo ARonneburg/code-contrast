@@ -3,7 +3,7 @@ import termcolor
 from itertools import groupby
 from typing import List, Iterable, Tuple
 
-from code_contrast.encoding import Encoding
+from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
 __all__ = ["hlprint", "editclass_print", "log"]
@@ -23,7 +23,7 @@ def _colored_join(sequence: Iterable[Tuple[str, str, str]]):
     ])
 
 
-def hlprint(encoder: Encoding, tokens: List[int], mask1=None, mask2=None) -> str:
+def hlprint(encoder: SMCEncoding, tokens: List[int], mask1=None, mask2=None) -> str:
 
     def _decode_colored_g():
         for idx, token in enumerate(tokens):
@@ -52,7 +52,7 @@ def hlprint(encoder: Encoding, tokens: List[int], mask1=None, mask2=None) -> str
 
 
 # TODO: typing, unclear diffedits format
-def editclass_print(encoder: Encoding, tokens: List[int], mask, diffedits) -> str:
+def editclass_print(encoder: SMCEncoding, tokens: List[int], mask, diffedits) -> str:
 
     def _decode_colored_g():
         for token, m, diffedit in zip(tokens, mask, diffedits):

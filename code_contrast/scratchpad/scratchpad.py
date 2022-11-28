@@ -3,8 +3,8 @@ import termcolor
 import time
 from typing import Callable, Union, List, Set
 
-from code_contrast.encoding import Encoding
-from code_contrast.pprint import hlprint
+from code_contrast.encoding.smc_encoding import SMCEncoding
+from code_contrast.print_utils import hlprint
 
 from typing import Set
 
@@ -12,7 +12,7 @@ from typing import Set
 class ScratchpadBase:
     def __init__(
         self,
-        enc: Encoding,
+        enc: SMCEncoding,
         id: str,
         created: float,
         temperature: float,

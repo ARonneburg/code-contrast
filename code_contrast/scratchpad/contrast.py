@@ -6,10 +6,10 @@ import termcolor
 import difflib
 from cdifflib import CSequenceMatcher
 
-from code_contrast.encoding import Encoding
+from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.scratchpad.contrast_stochastic import ops_remove_short_equals
 from code_contrast.scratchpad.contrast_stochastic import ops_stochastic_expand
-from code_contrast import pprint as pbe_pprint
+from code_contrast.print_utils import editclass_print
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -72,8 +72,8 @@ class UntokenizeState:
 
 
 class ContrastDiff:
-    def __init__(self, enc: Encoding):
-        self.enc: Encoding = enc
+    def __init__(self, enc: SMCEncoding):
+        self.enc: SMCEncoding = enc
         self.orig_tokens: Dict[str, List[int]] = dict()
         self.orig_withpos: Dict[str, List[int]] = dict()
         self.dest_tokens: Dict[str, List[int]] = dict()
@@ -847,7 +847,7 @@ example_odm = {
 }
 
 
-def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
+def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
     test1 = ContrastDiff(enc)
     for stochastic_tokens in [0.00]:
         full_orig_tokens = test1.from_odm_dict(odm, n_ctx,
@@ -861,7 +861,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
         return {}
     edit_classes = test1.edit_class_vector()
     if verbose:
-        print(pbe_pprint.editclass_print(enc, test1.r, test1.m, edit_classes))
+        print(editclass_print(enc, test1.r, test1.m, edit_classes))
         print(len(test1.r), "n_ctx=%i" % n_ctx)
     test2 = ContrastDiff(enc)
     test_odm_nodest = copy.deepcopy(odm)
@@ -884,7 +884,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
     for fn in test1.dest_tokens.keys():
         # if verbose:
         #     print("dest %s:" % fn)
-        #     print(pbe_pprint.hlprint(enc, test1.dest_tokens[fn]))
+        #     print(hlprint(enc, test1.dest_tokens[fn]))
         if test1.dest_tokens[fn] != test2.dest_tokens[fn]:
             dest1 = enc.decode(test1.dest_tokens[fn])
             dest2 = enc.decode(test2.dest_tokens[fn])
@@ -905,6 +905,6 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
 
 
 if __name__ == "__main__":
-    enc = Encoding("openai_programming_v2")
+    enc = SMCEncoding("openai_programming_v2")
     self_test(enc, example_odm, verbose=True, n_ctx=2049)
 

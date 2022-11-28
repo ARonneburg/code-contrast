@@ -1,4 +1,7 @@
-from code_contrast.pprint import log
-from code_contrast.pprint import hlprint
+from code_contrast.encoding.smc_encoding import SMCEncoding
+
+from code_contrast.print_utils import hlprint
+from code_contrast.print_utils import editclass_print
+
 from code_contrast.scratchpad import *
 from code_contrast.modeling import *

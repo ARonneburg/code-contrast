@@ -1,9 +1,9 @@
-from code_contrast.encoding import Encoding
+from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
 def test_rev50000_derivatives(ename):
     print("\ntesting", ename)
-    enc = Encoding(ename)
+    enc = SMCEncoding(ename)
     msg = "I can feel the magic, can you?\nПривет мир!!!"
     toks = enc.encode(msg)
     print("encode", toks)
@@ -27,7 +27,7 @@ def test_rev50000_derivatives(ename):
 
 def test_incoder_derivatives(fn):
     print("\ntesting", fn)
-    enc = Encoding(fn)
+    enc = SMCEncoding(fn)
     msg = "I can feel the magic, can you?\nПривет мир!!!:\n    if test"
     toks = enc.encode(msg)
     # toks = [0, 1, 2, 3, *toks]   # see special tokens

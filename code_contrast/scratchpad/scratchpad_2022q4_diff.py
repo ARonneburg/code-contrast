@@ -2,8 +2,8 @@ import torch as th
 import time
 import termcolor
 
-from code_contrast.encoding import Encoding
-from code_contrast.pprint import hlprint
+from code_contrast.encoding.smc_encoding import SMCEncoding
+from code_contrast.print_utils import hlprint
 
 from code_contrast.scratchpad import contrast
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
@@ -15,7 +15,7 @@ from typing import Dict, Optional, Any
 class ScratchpadDiff(ScratchpadBase):
     def __init__(
         self,
-        enc: Encoding,
+        enc: SMCEncoding,
         intent: str,
         cursor_file: str,
         cursor0: int,

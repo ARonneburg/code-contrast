@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import List, Tuple
 
 
-class Encoding:
+__all__ = ["SMCEncoding"]
+
+
+class SMCEncoding:
     def __init__(self, name: str):
         self.DIAMOND = 0
         self.INFILL = 0
@@ -21,7 +24,7 @@ class Encoding:
         self.EOT = 0
         self._pos_tokens = []
 
-        filename = Path(__file__).resolve().parent / "encodings" / f"{name}.json"
+        filename = Path(__file__).resolve().parent / f"{name}.json"
         self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
         if name == "openai_reversible50000":
             self.EOT = 50256

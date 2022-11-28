@@ -1,13 +1,11 @@
-from code_contrast.pprint import log
-from code_contrast.encoding import Encoding
-from code_contrast.pprint import hlprint
+from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
 from typing import List
 
 
 class ScratchpadCompletion(ScratchpadBase):
-    def __init__(self, enc: Encoding, prompt, **kwargs):
+    def __init__(self, enc: SMCEncoding, prompt, **kwargs):
         super().__init__(enc, **kwargs)
         self._tokens: List[int] = []
         self._prompt = prompt

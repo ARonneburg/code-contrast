@@ -3,7 +3,7 @@ import random
 import difflib
 import termcolor
 
-from code_contrast.encoding import Encoding
+from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
 text_a = """#hmm
@@ -117,7 +117,7 @@ def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_i
 
 
 def test_stochastic(remove_short_equals=False, stochastic_replace_more=True):
-    enc = Encoding("openai_programming_v2")
+    enc = SMCEncoding("openai_programming_v2")
     def dec(x):
         return enc.decode(x).replace("\n", "\\n")
     a_tokens = enc.encode(text_a)
