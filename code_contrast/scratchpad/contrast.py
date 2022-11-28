@@ -7,8 +7,9 @@ import difflib
 from cdifflib import CSequenceMatcher
 
 from code_contrast.encoding import Encoding
-from code_contrast.scratchpad.stochastic import ops_remove_short_equals
-from code_contrast.scratchpad.stochastic import ops_stochastic_expand
+from code_contrast.scratchpad.contrast_stochastic import ops_remove_short_equals
+from code_contrast.scratchpad.contrast_stochastic import ops_stochastic_expand
+from code_contrast import pprint as pbe_pprint
 
 from collections import defaultdict
 from dataclasses import dataclass
@@ -860,7 +861,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
         return {}
     edit_classes = test1.edit_class_vector()
     if verbose:
-        print(enc.editclass_print(test1.r, test1.m, edit_classes))
+        print(pbe_pprint.editclass_print(test1.r, enc, test1.m, edit_classes))
         print(len(test1.r), "n_ctx=%i" % n_ctx)
     test2 = ContrastDiff(enc)
     test_odm_nodest = copy.deepcopy(odm)
@@ -883,7 +884,7 @@ def self_test(enc: Encoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tig
     for fn in test1.dest_tokens.keys():
         # if verbose:
         #     print("dest %s:" % fn)
-        #     print(enc.hlprint(test1.dest_tokens[fn]))
+        #     print(pbe_pprint.hlprint(test1.dest_tokens[fn], enc))
         if test1.dest_tokens[fn] != test2.dest_tokens[fn]:
             dest1 = enc.decode(test1.dest_tokens[fn])
             dest2 = enc.decode(test2.dest_tokens[fn])

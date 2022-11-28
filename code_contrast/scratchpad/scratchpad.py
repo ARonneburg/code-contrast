@@ -1,10 +1,9 @@
 import torch as th
 import termcolor
 import time
-from typing import Callable, Union, List, Any, Set
+from typing import Callable, Union, List, Set
 
 from code_contrast.encoding import Encoding
-from code_contrast.pprint import log
 from code_contrast.pprint import hlprint
 
 from typing import Set
@@ -13,7 +12,7 @@ from typing import Set
 class ScratchpadBase:
     def __init__(
         self,
-        enc: bpe_encoding.Encoding,
+        enc: Encoding,
         id: str,
         created: float,
         temperature: float,
@@ -62,7 +61,7 @@ class ScratchpadBase:
                 for t, add in logits_intrusion.items():
                     if DEBUGLOG_TOP3:
                         self.debuglog("logit for %s is %0.3f, adding %0.3f" % (
-                            self.enc.hlprint([t]),
+                            hlprint([t], self.enc),
                             logits[-1, t],
                             add))
                     logits[-1, t] += add

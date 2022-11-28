@@ -3,11 +3,10 @@ import time
 import termcolor
 
 from code_contrast.encoding import Encoding
-from code_contrast.pprint import log
 from code_contrast.pprint import hlprint
 
 from code_contrast.scratchpad import contrast
-from code_contrast.scratchpad.base import ScratchpadBase
+from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
 
 from typing import Dict, Optional, Any
@@ -254,7 +253,7 @@ class ScratchpadDiff(ScratchpadBase):
             while 1:
                 t = self.cursorfile_tokens2[i]
                 if self.enc.is_tpos(t):
-                    self.debuglog("diff-selection increase logits", self.enc.hlprint([t]))
+                    self.debuglog("diff-selection increase logits", hlprint([t], self.enc))
                     self.increase_logits.append(t)
                     if over: break
                 if i >= self.t_cursor1:
@@ -347,7 +346,7 @@ class ScratchpadDiff(ScratchpadBase):
         self.diff_out_catch_up()
         tokens1 = self.diff.orig_tokens[fn]      # equals to self.diff_out
         tokens2 = self.diff_out.orig_withpos[fn] # all tokens including cutted out top/bottom, with postion tokens in the middle
-        # print(self.enc.hlprint(tokens2))
+        # print(hlprint(tokens2, self.enc))
         i1 = 0
         map2to1 = []
         # At the end after escape, only diamonds and the last tpos are allowed:
