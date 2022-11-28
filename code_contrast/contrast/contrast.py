@@ -7,8 +7,8 @@ import difflib
 from cdifflib import CSequenceMatcher
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.scratchpad.contrast_stochastic import ops_remove_short_equals
-from code_contrast.scratchpad.contrast_stochastic import ops_stochastic_expand
+from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
+from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
 from code_contrast.print_utils import editclass_print
 
 from collections import defaultdict

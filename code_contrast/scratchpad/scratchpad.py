@@ -1,12 +1,11 @@
 import torch as th
 import termcolor
 import time
-from typing import Callable, Union, List, Set
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
 
-from typing import Set
+from typing import Callable, Union, List, Set
 
 
 class ScratchpadBase:

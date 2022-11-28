@@ -5,7 +5,7 @@ import termcolor
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
 
-from code_contrast.scratchpad import contrast
+from code_contrast.contrast import contrast
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
 
