@@ -80,7 +80,7 @@ class ScratchpadDiff(ScratchpadBase):
                     if extra_newlines >= 0:
                         logits_intrusion[self.enc.ESCAPE] = 3.0 + 0.5 * extra_newlines
                 # edit works like this: scratch[e.real_cursor:e.real_delends] = e.toins
-        a = inf_scratchpad.ScratchpadBase.new_token(self, m, b, logits, heads, logits_intrusion)
+        a = super().new_token(m, b, logits, heads, logits_intrusion)
         # a is int, no shape
         t = a.item()
         self.diff.r.append(t)
@@ -253,7 +253,7 @@ class ScratchpadDiff(ScratchpadBase):
             while 1:
                 t = self.cursorfile_tokens2[i]
                 if self.enc.is_tpos(t):
-                    self.debuglog("diff-selection increase logits", hlprint([t], self.enc))
+                    self.debuglog("diff-selection increase logits", hlprint(self.enc, [t]))
                     self.increase_logits.append(t)
                     if over: break
                 if i >= self.t_cursor1:
@@ -346,7 +346,7 @@ class ScratchpadDiff(ScratchpadBase):
         self.diff_out_catch_up()
         tokens1 = self.diff.orig_tokens[fn]      # equals to self.diff_out
         tokens2 = self.diff_out.orig_withpos[fn] # all tokens including cutted out top/bottom, with postion tokens in the middle
-        # print(hlprint(tokens2, self.enc))
+        # print(hlprint(self.enc, tokens2))
         i1 = 0
         map2to1 = []
         # At the end after escape, only diamonds and the last tpos are allowed:

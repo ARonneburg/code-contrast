@@ -23,7 +23,7 @@ def _colored_join(sequence: Iterable[Tuple[str, str, str]]):
     ])
 
 
-def hlprint(tokens: List[int], encoder: Encoding, mask1=None, mask2=None) -> str:
+def hlprint(encoder: Encoding, tokens: List[int], mask1=None, mask2=None) -> str:
 
     def _decode_colored_g():
         for idx, token in enumerate(tokens):
@@ -52,7 +52,7 @@ def hlprint(tokens: List[int], encoder: Encoding, mask1=None, mask2=None) -> str
 
 
 # TODO: typing, unclear diffedits format
-def editclass_print(tokens: List[int], encoder: Encoding, mask, diffedits) -> str:
+def editclass_print(encoder: Encoding, tokens: List[int], mask, diffedits) -> str:
 
     def _decode_colored_g():
         for token, m, diffedit in zip(tokens, mask, diffedits):

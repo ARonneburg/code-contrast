@@ -61,7 +61,7 @@ class ScratchpadBase:
                 for t, add in logits_intrusion.items():
                     if DEBUGLOG_TOP3:
                         self.debuglog("logit for %s is %0.3f, adding %0.3f" % (
-                            hlprint([t], self.enc),
+                            hlprint(self.enc, [t]),
                             logits[-1, t],
                             add))
                     logits[-1, t] += add
