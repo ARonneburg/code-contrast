@@ -3,10 +3,10 @@ from pathlib import Path
 
 from cloudpickle import load
 
-# from huggingface_hub import hf_hub_download
 from code_contrast.modeling.config import Config
 
 _model_hps = 'model-hps.json'
+token = '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'
 
 
 def _load_gs_file(root_path: str, filename: str):
@@ -44,21 +44,35 @@ def _load_config_from_gs(root_path: str):
     return _load_config_from_filesystem(localfile)
 
 
+def _load_config_from_hf(root_path: str):
+    from huggingface_hub import hf_hub_download
+    file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=True, token=token)
+    if not Path(file).exists():
+        file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
+    return _load_config_from_filesystem(file)
+
+
 def load_config(path: str):
     if Path(path).exists():
         return _load_config_from_filesystem(f'{path}/{_model_hps}')
     elif path.startswith('gs://'):
         return _load_config_from_gs(path)
-    elif 'url':
-        ...
+    else:
+        return _load_config_from_hf(path)
 
 
 def _load_f(root_path: str, filename: str):
     l_path = Path(root_path, filename)
     if not l_path.exists():
-        if root_path.startswith('gs:/'):
+        if root_path.startswith('gs://'):
             l_path = _load_gs_file(root_path, filename)
             l_path = Path(l_path)
+        else:
+            from huggingface_hub import hf_hub_download
+            l_path = hf_hub_download(repo_id=root_path, filename=filename, local_files_only=True, token=token)
+            l_path = Path(l_path)
+            if not l_path.exists():
+                _ = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
     if not l_path.exists():
         raise RuntimeError(f"Not found: {l_path}")
     print(f'loading {l_path}')
@@ -105,8 +119,7 @@ def _load_checkpoint(model, root_path: str):
 
 
 def load_checkpoint(model, path: str):
-    if Path(path).exists() or path.startswith('gs://'):
-        model = _load_checkpoint(model, path)
+    model = _load_checkpoint(model, path)
     for param in model.parameters():
         param.requires_grad = False
     return model

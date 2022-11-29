@@ -10,7 +10,8 @@ if __name__ == '__main__':
     # gs is working
     # model = CodifyModel.from_pretrained('gs://small-storage1/checkpoints/Diffs-v0/11-mix10-medium-tposaft-lr50/000300000/')
     # directory
-    d = 'gs://small-storage1/checkpoints/Diffs-v0/31-mix10i-medium-av100-switch75k/final/'
+    d = 'reymondzzz/testmodel'
+    # d = 'gs://small-storage1/checkpoints/Diffs-v0/31-mix10i-medium-av100-switch75k/final/'
     sample_chain3 = "Hello world,"
     s = " I'm not sure what to do."
     with torch.inference_mode():
