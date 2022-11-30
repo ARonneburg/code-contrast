@@ -51,6 +51,15 @@ class ScratchpadDiff(ScratchpadBase):
         self.increase_logits = []
         self.no_stop_tokens_until = -1
         self.selected_newlines = -1
+        self.P1 = 0.35
+        self.P2 = 0.20
+        self.JP1 = 0.20
+
+    def set_model_thresholds(self, P1, P2, JP1, **more):
+        self.P1 = P1
+        self.P2 = P2
+        self.JP1 = JP1
+        super().set_model_thresholds(**more)
 
     def new_token(self, m, b, logits, heads):
         if self.state_before_first_tpos:
@@ -392,9 +401,6 @@ class ScratchpadDiff(ScratchpadBase):
         cut0 = self.diff_out.fn2cut0[self.cursor_file]
         self.highlight = []
         self.highlight16 = []
-        P1 = 0.35
-        P2 = 0.20
-        JP1 = 0.20
         inside_yellow = False
         inside_purple = False
         starts16 = -1
@@ -423,10 +429,10 @@ class ScratchpadDiff(ScratchpadBase):
             tokens0pos = map2to1[prev_lf + 1 - start + cut0]
             tokens1pos = map2to1[ti - start + cut0]
             want16 = 0
-            if p1 > P1:
+            if p1 > self.P1:
                 want16 = 0.3
                 inside_yellow = True
-            elif p2 > P2 and inside_yellow:
+            elif p2 > self.P2 and inside_yellow:
                 want16 = 0.15
                 inside_purple = True
             else:
@@ -455,12 +461,12 @@ class ScratchpadDiff(ScratchpadBase):
                             "blue"),
                         termcolor.colored(
                             " %0.1f%%" % (100*jp1,),
-                            "yellow" if (jp1 > JP1) else None,
+                            "yellow" if (jp1 > self.JP1) else None,
                         )
                     )
                     if self.enc.is_tpos(self.diff.r[tj]):
                         continue
-                    if jp1 > JP1:
+                    if jp1 > self.JP1:
                         tokens1pos = map2to1[tj - start + cut0]
                         tokens2pos = map2to1[tj + 1 - start + cut0]
                         jtmp1 = self.enc.decode(tokens1[:tokens1pos])

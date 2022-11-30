@@ -93,6 +93,10 @@ class ScratchpadBase:
     def finalize(self):
         pass
 
+    def set_model_thresholds(self, *args):
+        if len(args) > 0:
+            self.debuglog("set_model_thresholds: unused parameters %s" % str(args))
+
     def debuglog(self, *args):
         elapsed = time.time() - self.created
         self._logger("%4.0fms" % (elapsed * 1000,), *args)
