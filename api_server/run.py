@@ -25,8 +25,9 @@ if __name__ == "__main__":
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     logging.basicConfig(level=logging.INFO, handlers=[stream_handler, file_handler])
 
-    with CodifyModel.from_pretrained(args.workdir / "weights", repo_id="reymondzzz/testmodel") as model:
-        inference = Inference(model=model, device=args.device)
+    model = CodifyModel.from_pretrained(args.workdir / "weights", repo_id="reymondzzz/testmodel")
+    inference = Inference(model=model, device=args.device)
+    del model
 
     app = FastAPI(docs_url=None)
     app.include_router(CompletionRouter(inference))
