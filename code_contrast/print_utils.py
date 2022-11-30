@@ -6,12 +6,7 @@ from typing import List, Iterable, Tuple
 from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
-__all__ = ["hlprint", "editclass_print", "log"]
-
-
-def log(*args, **kwargs):
-    # print(*args, **kwargs)
-    pass
+__all__ = ["hlprint", "editclass_print"]
 
 
 def _colored_join(sequence: Iterable[Tuple[str, str, str]]):
