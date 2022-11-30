@@ -1,12 +1,7 @@
 import os
-import json
 import logging
-import cloudpickle
-import blobfile as bf
 
 from pathlib import Path
-
-from huggingface_hub import hf_hub_download
 
 from code_contrast.modeling.config import Config
 
@@ -18,6 +13,7 @@ token = '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'
 
 
 def _load_gs_file(root_path: str, filename: str):
+    import blobfile as bf
     rest = root_path[len("gs://"):]
     slash = '/'
     if root_path[-1] == '/':
@@ -42,6 +38,7 @@ def _load_filename(root_path: str, filename: str, repo_id: Optional[str] = None)
         else:
             local_path = Path(root_path) / filename
     else:
+        from huggingface_hub import hf_hub_download
         args = dict(
             repo_id=repo_id,
             filename=filename,
@@ -59,8 +56,10 @@ def _load_filename(root_path: str, filename: str, repo_id: Optional[str] = None)
 
     logging.info(f'load {local_path}')
     if local_path.suffix == ".json":
+        import json
         return json.loads(local_path.read_text())
     else:
+        import cloudpickle
         return cloudpickle.loads(local_path.read_bytes())
 
 
