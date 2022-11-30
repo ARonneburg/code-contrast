@@ -2,6 +2,8 @@ import sys
 
 import uvicorn
 import logging
+
+from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI
 
@@ -21,7 +23,9 @@ if __name__ == "__main__":
     parser.add_argument("--workdir", type=Path, default=Path("/working_volume"))
     args = parser.parse_args()
 
-    file_handler = logging.FileHandler(filename=args.workdir / "server.log")
+    logdir = args.workdir / "logs"
+    logdir.mkdir(exist_ok=True, parents=False)
+    file_handler = logging.FileHandler(filename=logdir / f"{datetime.now():%Y-%m-%d-%H-%M-%S}.log")
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     logging.basicConfig(level=logging.INFO, handlers=[stream_handler, file_handler])
 
