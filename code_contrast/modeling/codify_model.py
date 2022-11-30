@@ -29,10 +29,10 @@ class CodifyModel(nn.Module):
         self.bidir_2logits = nn.Linear(config.E, 3)
 
     @classmethod
-    def from_pretrained(cls, path: str):
-        config = load_config(path)
+    def from_pretrained(cls, path: str, repo_id: Optional[str] = None):
+        config = load_config(path, repo_id)
         model = cls(config)
-        model = load_checkpoint(model, path)
+        model = load_checkpoint(model, path, repo_id)
         return model
 
     def generate(self, *args, **kwargs):

@@ -1,16 +1,19 @@
 import os
 import json
 import logging
+import cloudpickle
 import blobfile as bf
 
 from pathlib import Path
 
-from cloudpickle import load
 from huggingface_hub import hf_hub_download
 
 from code_contrast.modeling.config import Config
 
-_model_hps = 'model-hps.json'
+from typing import Optional
+
+
+# TODO: remove ASAP
 token = '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'
 
 
@@ -31,94 +34,77 @@ def _load_gs_file(root_path: str, filename: str):
     return str(local)
 
 
-def _load_config_from_filesystem(filepath: str):
-    filepath = Path(filepath)
-    if not filepath.exists():
-        raise RuntimeError(f"Not found: {filepath}")
-
-    with open(str(filepath), 'r') as f:
-        config = json.load(f)
-    config = Config.from_dict(config)
-    return config
-
-
-def _load_config_from_gs(root_path: str):
-    localfile = _load_gs_file(root_path, _model_hps)
-    return _load_config_from_filesystem(localfile)
-
-
-def _load_config_from_hf(root_path: str):
-    file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
-    return _load_config_from_filesystem(file)
-
-
-def load_config(path: str):
-    if Path(path).exists():
-        return _load_config_from_filesystem(f'{path}/{_model_hps}')
-    elif path.startswith('gs://'):
-        return _load_config_from_gs(path)
-    else:
-        return _load_config_from_hf(path)
-
-
-def _load_f(root_path: str, filename: str):
-    l_path = Path(root_path, filename)
-    if not l_path.exists():
+def _load_filename(root_path: str, filename: str, repo_id: Optional[str] = None):
+    if repo_id is None:
         if root_path.startswith('gs://'):
-            l_path = _load_gs_file(root_path, filename)
-            l_path = Path(l_path)
+            local_path = _load_gs_file(root_path, filename)
+            local_path = Path(local_path)
         else:
-            l_path = hf_hub_download(repo_id=root_path, filename=filename, local_files_only=False, token=token)
-            l_path = Path(l_path)
-            if not l_path.exists():
-                _ = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
-    if not l_path.exists():
-        raise RuntimeError(f"Not found: {l_path}")
-    logging.info(f'loading {l_path}')
-    with open(str(l_path), 'rb') as f:
-        return load(f)
+            local_path = Path(root_path) / filename
+    else:
+        args = dict(
+            repo_id=repo_id,
+            filename=filename,
+            token=token,
+            cache_dir=root_path,
+        )
+        try:
+            local_path = hf_hub_download(**args, local_files_only=True)
+        except FileNotFoundError:
+            local_path = hf_hub_download(**args, local_files_only=False)
+        local_path = Path(local_path)
+
+    if not local_path.exists():
+        raise RuntimeError(f"Not found: {local_path}")
+
+    logging.info(f'load {local_path}')
+    if local_path.suffix == ".json":
+        return json.loads(local_path.read_text())
+    else:
+        return cloudpickle.loads(local_path.read_bytes())
 
 
-def _load_checkpoint(model, root_path: str):
-    model.wte.weight.data[:] = _load_f(root_path, 'emb')
-    model.lm_head.weight.data[:] = _load_f(root_path, 'unemb')
-    model.ln_f.weight.data[:] = _load_f(root_path, 'bounce.ln_final.weight')
-    model.ln_f.bias.data[:] = _load_f(root_path, 'bounce.ln_final.bias')
+def load_config(root_path: str, repo_id: Optional[str] = None):
+    config = _load_filename(root_path, 'model-hps.json', repo_id)
+    return Config.from_dict(config)
 
-    model.bidir_sa_ln.weight.data[:] = _load_f(root_path, 'bidir_sa_ln.weight')
-    model.bidir_sa_ln.bias.data[:] = _load_f(root_path, 'bidir_sa_ln.bias')
-    model.bidir_sa.qkv.weight.data[:] = _load_f(root_path, 'bidir_sa.qkv')
-    model.bidir_sa.qkv.bias.data[:] = _load_f(root_path, 'bidir_sa.qkv_bias')
-    model.bidir_sa.out.weight.data[:] = _load_f(root_path, 'bidir_sa.backproj')
-    model.bidir_sa.out.bias.data[:] = _load_f(root_path, 'bidir_sa.backproj_bias')
 
-    model.bidir_2logits_ln.weight.data[:] = _load_f(root_path, 'bidir_2logits_ln.weight')
-    model.bidir_2logits_ln.bias.data[:] = _load_f(root_path, 'bidir_2logits_ln.bias')
-    model.bidir_2logits.weight.data[:] = _load_f(root_path, 'bidir_2logits.weight')
-    model.bidir_2logits.bias.data[:] = _load_f(root_path, 'bidir_2logits.bias')
+def load_checkpoint(model, root_path: str, repo_id: Optional[str] = None):
+    model.wte.weight.data[:] = _load_filename(root_path, 'emb', repo_id)
+    model.lm_head.weight.data[:] = _load_filename(root_path, 'unemb', repo_id)
+    model.ln_f.weight.data[:] = _load_filename(root_path, 'bounce.ln_final.weight', repo_id)
+    model.ln_f.bias.data[:] = _load_filename(root_path, 'bounce.ln_final.bias', repo_id)
+
+    model.bidir_sa_ln.weight.data[:] = _load_filename(root_path, 'bidir_sa_ln.weight', repo_id)
+    model.bidir_sa_ln.bias.data[:] = _load_filename(root_path, 'bidir_sa_ln.bias', repo_id)
+    model.bidir_sa.qkv.weight.data[:] = _load_filename(root_path, 'bidir_sa.qkv', repo_id)
+    model.bidir_sa.qkv.bias.data[:] = _load_filename(root_path, 'bidir_sa.qkv_bias', repo_id)
+    model.bidir_sa.out.weight.data[:] = _load_filename(root_path, 'bidir_sa.backproj', repo_id)
+    model.bidir_sa.out.bias.data[:] = _load_filename(root_path, 'bidir_sa.backproj_bias', repo_id)
+
+    model.bidir_2logits_ln.weight.data[:] = _load_filename(root_path, 'bidir_2logits_ln.weight', repo_id)
+    model.bidir_2logits_ln.bias.data[:] = _load_filename(root_path, 'bidir_2logits_ln.bias', repo_id)
+    model.bidir_2logits.weight.data[:] = _load_filename(root_path, 'bidir_2logits.weight', repo_id)
+    model.bidir_2logits.bias.data[:] = _load_filename(root_path, 'bidir_2logits.bias', repo_id)
 
     for i in range(1, len(model.layers) + 1):
         f_prefix = f'layers.{i:03d}'
-        model.layers[i - 1].ln_a.weight.data[:] = _load_f(root_path, f'{f_prefix}.ln_a.weight')
-        model.layers[i - 1].ln_a.bias.data[:] = _load_f(root_path, f'{f_prefix}.ln_a.bias')
-        model.layers[i - 1].ln_m.weight.data[:] = _load_f(root_path, f'{f_prefix}.ln_m.weight')
-        model.layers[i - 1].ln_m.bias.data[:] = _load_f(root_path, f'{f_prefix}.ln_m.bias')
+        model.layers[i - 1].ln_a.weight.data[:] = _load_filename(root_path, f'{f_prefix}.ln_a.weight', repo_id)
+        model.layers[i - 1].ln_a.bias.data[:] = _load_filename(root_path, f'{f_prefix}.ln_a.bias', repo_id)
+        model.layers[i - 1].ln_m.weight.data[:] = _load_filename(root_path, f'{f_prefix}.ln_m.weight', repo_id)
+        model.layers[i - 1].ln_m.bias.data[:] = _load_filename(root_path, f'{f_prefix}.ln_m.bias', repo_id)
 
-        model.layers[i - 1].mlp.ln_1.weight.data[:] = _load_f(root_path, f'{f_prefix}.pw.W1')
-        model.layers[i - 1].mlp.ln_1.bias.data[:] = _load_f(root_path, f'{f_prefix}.pw.b1')
-        model.layers[i - 1].mlp.ln_2.weight.data[:] = _load_f(root_path, f'{f_prefix}.pw.W2')
-        model.layers[i - 1].mlp.ln_2.bias.data[:] = _load_f(root_path, f'{f_prefix}.pw.b2')
+        model.layers[i - 1].mlp.ln_1.weight.data[:] = _load_filename(root_path, f'{f_prefix}.pw.W1', repo_id)
+        model.layers[i - 1].mlp.ln_1.bias.data[:] = _load_filename(root_path, f'{f_prefix}.pw.b1', repo_id)
+        model.layers[i - 1].mlp.ln_2.weight.data[:] = _load_filename(root_path, f'{f_prefix}.pw.W2', repo_id)
+        model.layers[i - 1].mlp.ln_2.bias.data[:] = _load_filename(root_path, f'{f_prefix}.pw.b2', repo_id)
 
-        model.layers[i - 1].sa.qkv.weight.data[:] = _load_f(root_path, f'{f_prefix}.sa.qkv')
-        model.layers[i - 1].sa.qkv.bias.data[:] = _load_f(root_path, f'{f_prefix}.sa.qkv_bias')
-        model.layers[i - 1].sa.out.weight.data[:] = _load_f(root_path, f'{f_prefix}.sa.backproj')
-        model.layers[i - 1].sa.out.bias.data[:] = _load_f(root_path, f'{f_prefix}.sa.backproj_bias')
+        model.layers[i - 1].sa.qkv.weight.data[:] = _load_filename(root_path, f'{f_prefix}.sa.qkv', repo_id)
+        model.layers[i - 1].sa.qkv.bias.data[:] = _load_filename(root_path, f'{f_prefix}.sa.qkv_bias', repo_id)
+        model.layers[i - 1].sa.out.weight.data[:] = _load_filename(root_path, f'{f_prefix}.sa.backproj', repo_id)
+        model.layers[i - 1].sa.out.bias.data[:] = _load_filename(root_path, f'{f_prefix}.sa.backproj_bias', repo_id)
 
-    return model
-
-
-def load_checkpoint(model, path: str):
-    model = _load_checkpoint(model, path)
     for param in model.parameters():
         param.requires_grad = False
+
     return model

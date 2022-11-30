@@ -13,10 +13,9 @@ from typing import Optional, Union, Dict, Any, Iterable
 
 class Inference:
 
-    def __init__(self, weights: str, device: str = 'cuda'):
+    def __init__(self, model: CodifyModel, device: str = 'cuda'):
         self._device = device
-        self._model = CodifyModel.from_pretrained(weights)
-        self._model = self._model.to(self._device).to(torch.half).eval()
+        self._model = model.to(self._device).to(torch.half).eval()
         self._encoding = self._model.config.encoding
 
     def _prepare(self, request: Dict[str, Any]):
