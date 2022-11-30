@@ -46,9 +46,7 @@ def _load_config_from_gs(root_path: str):
 
 def _load_config_from_hf(root_path: str):
     from huggingface_hub import hf_hub_download
-    file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=True, token=token)
-    if not Path(file).exists():
-        file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
+    file = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
     return _load_config_from_filesystem(file)
 
 
@@ -69,10 +67,8 @@ def _load_f(root_path: str, filename: str):
             l_path = Path(l_path)
         else:
             from huggingface_hub import hf_hub_download
-            l_path = hf_hub_download(repo_id=root_path, filename=filename, local_files_only=True, token=token)
+            l_path = hf_hub_download(repo_id=root_path, filename=filename, local_files_only=False, token=token)
             l_path = Path(l_path)
-            if not l_path.exists():
-                _ = hf_hub_download(repo_id=root_path, filename=_model_hps, local_files_only=False, token=token)
     if not l_path.exists():
         raise RuntimeError(f"Not found: {l_path}")
     print(f'loading {l_path}')
