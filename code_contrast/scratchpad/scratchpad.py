@@ -51,35 +51,11 @@ class ScratchpadBase:
         self.generated_tokens_n = 0
         self.needs_upload = False
 
-    def new_token(self, m, b, logits, heads, logits_intrusion=dict()):
-        DEBUGLOG_TOP3 = False
-        if self.temp <= 0.01:
-            a = th.argmax(logits, dim=1)
-        else:
-            if logits_intrusion:
-                for t, add in logits_intrusion.items():
-                    if DEBUGLOG_TOP3:
-                        self.debuglog("logit for %s is %0.3f, adding %0.3f" % (
-                            hlprint(self.enc, [t]),
-                            logits[-1, t],
-                            add))
-                    logits[-1, t] += add
-            pd = th.distributions.categorical.Categorical(logits=logits / self.temp)
-            a = pd.sample()
-            if DEBUGLOG_TOP3:
-                self._debug_top3(a, pd.probs)
-        return a
+    def before_token_selection(self, **kwargs):
+        raise NotImplementedError()
 
-    def _debug_top3(self, a: th.Tensor, probs: th.Tensor):
-        def _format(t: str, color: str):
-            return "\"%s\"" % termcolor.colored(t.replace("\n", "\\n").replace("\r", "\\r"), color)
-        text = _format(self.enc.decode([a.item()]), "green").ljust(25)
-        text += " <= "
-        probs, top3idx = map(lambda x: x.ravel().cpu().numpy(), probs.topk(4, dim=1))
-        for prob, i in zip(probs, top3idx):
-            text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow"))
-            text += " %0.1f%%" % (100 * prob)
-        self.debuglog("top3: %s" % text)
+    def after_token_selection(self, **kwargs):
+        raise NotImplementedError()
 
     def toplevel_fields(self):
         return {}

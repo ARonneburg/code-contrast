@@ -10,15 +10,20 @@ class ScratchpadCompletion(ScratchpadBase):
         self._tokens: List[int] = []
         self._prompt = prompt
 
-    def new_token(self, m, b, logits, heads, logits_intrusion=dict()):
-        a = super().new_token(m, b, logits, heads, logits_intrusion)
-        ai = a.item()
+    def before_token_selection(self, **unused):
+        pass
+
+    def after_token_selection(
+            self,
+            choosen_token,
+            **unused
+    ):
         self.needs_upload = True
         self.generated_tokens_n += 1
-        self._tokens.append(ai)
-        if ai==self.enc.EOT:
+        self._tokens.append(choosen_token.item())
+        if choosen_token == self.enc.EOT:
             self.finish_reason = "eot"
-        if ai in self.stop_tokens:
+        if choosen_token in self.stop_tokens:
             self.finish_reason = "stoptoken"
         if len(self._tokens) > 3:
             if self.stop_lf_lf and self._tokens[-1] == self.enc.LF and self._tokens[-2] == self.enc.LF:
@@ -30,7 +35,6 @@ class ScratchpadCompletion(ScratchpadBase):
                     self.finish_reason = "ins-stop-lflflf"
                 elif self._tokens[-2] == self.enc.LFLF and self._tokens[-1] == self.enc.LFLF:
                     self.finish_reason = "ins-stop-lflflf"
-        return a
 
     def prompt(self, T: int):
         # For facebook infill:

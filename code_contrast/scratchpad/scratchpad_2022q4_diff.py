@@ -61,7 +61,14 @@ class ScratchpadDiff(ScratchpadBase):
         self.JP1 = JP1
         super().set_model_thresholds(**more)
 
-    def new_token(self, m, b, logits, heads):
+    def before_token_selection(
+            self,
+            m: Any,
+            b: int,
+            logits: th.Tensor,
+            heads: List[th.Tensor],
+            **unused
+    ):
         if self.state_before_first_tpos:
             if self.function == "highlight":
                 self.highlight_method4(m, b, logits, heads)
@@ -72,10 +79,10 @@ class ScratchpadDiff(ScratchpadBase):
             for tpos in self.increase_logits:
                 logits_intrusion[tpos] = +4.5
         if (
-            self.diff_out_us is not None and
-            self.diff_out_us.state==contrast.DEL and
-            self.diff_out_us.brewing_edit.real_cursor != -1 and
-            self.diff_out_us.brewing_edit.fn == self.cursor_file
+                self.diff_out_us is not None and
+                self.diff_out_us.state == contrast.DEL and
+                self.diff_out_us.brewing_edit.real_cursor != -1 and
+                self.diff_out_us.brewing_edit.fn == self.cursor_file
         ):
             e = self.diff_out_us.brewing_edit
             scratch = self.diff_out_us.scratch[e.fn]
@@ -89,13 +96,18 @@ class ScratchpadDiff(ScratchpadBase):
                     if extra_newlines >= 0:
                         logits_intrusion[self.enc.ESCAPE] = 3.0 + 0.5 * extra_newlines
                 # edit works like this: scratch[e.real_cursor:e.real_delends] = e.toins
-        a = super().new_token(m, b, logits, heads, logits_intrusion)
-        # a is int, no shape
-        t = a.item()
-        self.diff.r.append(t)
+        return dict(
+            logits_intrusion=logits_intrusion
+        )
+
+    def after_token_selection(
+            self,
+            choosen_token: th.Tensor,
+            **unused
+    ):
+        self.diff.r.append(choosen_token.item())
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
-        return a
 
     def toplevel_fields(self):
         return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
