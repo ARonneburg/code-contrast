@@ -119,12 +119,15 @@ class Inference:
             "choices": [
                 {
                     "index": 0,
+                    "text": "",
                     "files": scratchpad.completion(True),
                     "logprobs": None,
                     "finish_reason": scratchpad.finish_reason
                 },
             ],
             "status": status,
-            "more_toplevel_fields": (scratchpad.toplevel_fields(),),
-            "generated_tokens_n": (scratchpad.generated_tokens_n,),
+            "created": scratchpad.created,
+            "uploaded": time.time(),
+            "generated_tokens_n": scratchpad.generated_tokens_n,
+            **scratchpad.toplevel_fields(),
         }

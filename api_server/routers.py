@@ -36,7 +36,7 @@ class CompletionRouter(APIRouter):
     def __init__(self, inference, *args, **kwargs):
         self._inference = inference
         super(CompletionRouter, self).__init__(*args, **kwargs)
-        super(CompletionRouter, self).add_api_route("/completion", self._completion, methods=["POST"])
+        super(CompletionRouter, self).add_api_route("/v1/completion", self._completion, methods=["POST"])
 
     async def _completion(self, post: TextSamplingParams):
         request = post.clamp()
@@ -55,7 +55,7 @@ class ContrastRouter(APIRouter):
     def __init__(self, inference, *args, **kwargs):
         self._inference = inference
         super(ContrastRouter, self).__init__(*args, **kwargs)
-        super(ContrastRouter, self).add_api_route("/contrast", self._contrast, methods=["POST"])
+        super(ContrastRouter, self).add_api_route("/v1/contrast", self._contrast, methods=["POST"])
 
     async def _contrast(self, post: DiffSamplingParams):
         if post.function != "diff-anywhere":
@@ -90,16 +90,3 @@ class ContrastRouter(APIRouter):
             "stream": post.stream,
         })
         return StreamingResponse(inference_streamer(request, self._inference))
-
-
-# if __name__ == "__main__":
-#     from argparse import ArgumentParser
-#
-#     parser = ArgumentParser()
-#     parser.add_argument("--host", type=str, default="127.0.0.1")
-#     parser.add_argument("--port", type=int, default=8008)
-#
-#     inference = Inference(weights="/code/model_weights")
-#     server = FastAPI(docs_url=None)
-#
-#     uvicorn.run(server, host="127.0.0.1", port=8008)
