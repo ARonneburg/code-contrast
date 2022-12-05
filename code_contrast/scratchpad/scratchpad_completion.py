@@ -1,7 +1,9 @@
+import torch as th
+
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
-from typing import List
+from typing import List, Any, Dict
 
 
 class ScratchpadCompletion(ScratchpadBase):
@@ -10,20 +12,21 @@ class ScratchpadCompletion(ScratchpadBase):
         self._tokens: List[int] = []
         self._prompt = prompt
 
-    def before_token_selection(self, **unused):
-        pass
+    def before_token_selection(self, m, **unused) -> Dict[str, Any]:
+        return dict()
 
     def after_token_selection(
             self,
-            choosen_token,
+            m,
+            chosen_token: th.Tensor,
             **unused
-    ):
+    ) -> Dict[str, Any]:
         self.needs_upload = True
         self.generated_tokens_n += 1
-        self._tokens.append(choosen_token.item())
-        if choosen_token == self.enc.EOT:
+        self._tokens.append(chosen_token.item())
+        if chosen_token == self.enc.EOT:
             self.finish_reason = "eot"
-        if choosen_token in self.stop_tokens:
+        if chosen_token in self.stop_tokens:
             self.finish_reason = "stoptoken"
         if len(self._tokens) > 3:
             if self.stop_lf_lf and self._tokens[-1] == self.enc.LF and self._tokens[-2] == self.enc.LF:
@@ -35,6 +38,7 @@ class ScratchpadCompletion(ScratchpadBase):
                     self.finish_reason = "ins-stop-lflflf"
                 elif self._tokens[-2] == self.enc.LFLF and self._tokens[-1] == self.enc.LFLF:
                     self.finish_reason = "ins-stop-lflflf"
+        return dict()
 
     def prompt(self, T: int):
         # For facebook infill:

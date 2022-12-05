@@ -9,7 +9,7 @@ from code_contrast.contrast import contrast
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
 
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 
 
 class ScratchpadDiff(ScratchpadBase):
@@ -65,13 +65,13 @@ class ScratchpadDiff(ScratchpadBase):
             self,
             m: Any,
             b: int,
-            logits: th.Tensor,
+            logit: th.Tensor,
             heads: List[th.Tensor],
             **unused
-    ):
+    ) -> Dict[str, Any]:
         if self.state_before_first_tpos:
             if self.function == "highlight":
-                self.highlight_method4(m, b, logits, heads)
+                self.highlight_method4(m, b, logit, heads)
             self.state_before_first_tpos = False
         prev_token = self.diff.r[-1]
         logits_intrusion: Dict[int, float] = dict()
@@ -102,12 +102,14 @@ class ScratchpadDiff(ScratchpadBase):
 
     def after_token_selection(
             self,
-            choosen_token: th.Tensor,
+            m,
+            chosen_token: th.Tensor,
             **unused
-    ):
-        self.diff.r.append(choosen_token.item())
+    ) -> Dict[str, Any]:
+        self.diff.r.append(chosen_token.item())
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
+        return dict()
 
     def toplevel_fields(self):
         return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
@@ -388,7 +390,7 @@ class ScratchpadDiff(ScratchpadBase):
                 assert 0
         return tokens1, tokens2, map2to1
 
-    def highlight_method4(self, m: Any, b, logits, heads):
+    def highlight_method4(self, m: Any, b, logit, heads):
         t0 = time.time()
         x_bte = heads["x_bte"][b:b+1]
         first_bt = th.zeros_like(x_bte[:, :, 0])

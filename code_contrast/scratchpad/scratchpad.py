@@ -5,7 +5,7 @@ import time
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
 
-from typing import Callable, Union, List, Set
+from typing import Callable, Union, List, Set, Dict, Any
 
 
 class ScratchpadBase:
@@ -51,10 +51,10 @@ class ScratchpadBase:
         self.generated_tokens_n = 0
         self.needs_upload = False
 
-    def before_token_selection(self, **kwargs):
+    def before_token_selection(self, m, **kwargs) -> Dict[str, Any]:
         raise NotImplementedError()
 
-    def after_token_selection(self, **kwargs):
+    def after_token_selection(self, m, **kwargs) -> Dict[str, Any]:
         raise NotImplementedError()
 
     def toplevel_fields(self):
