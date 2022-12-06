@@ -15,7 +15,10 @@ class Inference:
 
     def __init__(self, model: CodifyModel, device: str = 'cuda'):
         self._device = device
-        self._model = model.to(self._device).to(torch.half).eval()
+        self._model = model.to(self._device)
+        if device.startswith("cuda"):
+            self._model = self._model.to(torch.half)
+        self._model = model.eval()
         self._encoding = self._model.config.encoding
 
     def _prepare(self, request: Dict[str, Any]):
