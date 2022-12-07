@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     logdir = args.workdir / "logs"
     logdir.mkdir(exist_ok=True, parents=False)
-    file_handler = logging.FileHandler(filename=logdir / f"{datetime.now():%Y-%m-%d-%H-%M-%S}.log")
+    file_handler = logging.FileHandler(filename=logdir / f"server_{datetime.now():%Y-%m-%d-%H-%M-%S}.log")
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     logging.basicConfig(level=logging.INFO, handlers=[stream_handler, file_handler])
 

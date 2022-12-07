@@ -96,12 +96,16 @@ class Inference:
             scratchpad.finish_reason = "maxlen"
 
     def _from_pretrained(self, model: str):
-        self._model = CodifyModel.from_pretrained(str(self._workdir / "weights"), repo_id="reymondzzz/testmodel")
-        self._model.to(self._device)
-        if self._device.startswith("cuda"):
-            self._model = self._model.to(torch.half)
-        self._model = self._model.eval()
-        self._encoding = self._model.config.encoding
+        try:
+            self._model = CodifyModel.from_pretrained(str(self._workdir / "weights"), repo_id="reymondzzz/testmodel")
+            self._model.to(self._device)
+            if self._device.startswith("cuda"):
+                self._model = self._model.to(torch.half)
+            self._model = self._model.eval()
+            self._encoding = self._model.config.encoding
+        except Exception as e:
+            logging.error("model loading failed:")
+            logging.error(e)
 
     @staticmethod
     def _json_result(scratchpad,
