@@ -97,6 +97,7 @@ class Inference:
 
     def _from_pretrained(self, model: str):
         self._model = CodifyModel.from_pretrained(str(self._workdir / "weights"), repo_id="reymondzzz/testmodel")
+        self._model.to(self._device)
         if self._device.startswith("cuda"):
             self._model = self._model.to(torch.half)
         self._model = self._model.eval()
