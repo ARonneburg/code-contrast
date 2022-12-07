@@ -4,6 +4,9 @@ import torch
 import time
 import traceback
 
+from pathlib import Path
+from threading import Thread
+
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
 from code_contrast import CodifyModel
@@ -13,15 +16,13 @@ from typing import Optional, Union, Dict, Any, Iterable
 
 class Inference:
 
-    def __init__(self, model: CodifyModel, device: str = 'cuda'):
-        self._device = device
-        self._model = model.to(self._device)
-        if device.startswith("cuda"):
-            self._model = self._model.to(torch.half)
-        self._model = model.eval()
-        self._encoding = self._model.config.encoding
+    def __init__(self, workdir: Path, force_cpu: bool):
+        self._workdir = workdir
+        self._device = "cuda" if torch.has_cuda and not force_cpu else "cpu"
+        self._model = None
+        self._encoding = None
 
-    def _prepare(self, request: Dict[str, Any]):
+    def _prepare_scratchpad(self, request: Dict[str, Any]):
         created_ts = time.time()
 
         def logger(*args):
@@ -94,23 +95,12 @@ class Inference:
         if not scratchpad.finish_reason:
             scratchpad.finish_reason = "maxlen"
 
-    def __call__(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
-        try:
-            scratchpad, tokens_prompt = self._prepare(request)
-            with torch.inference_mode():
-                for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
-                    if scratchpad.needs_upload and stream:
-                        yield self._json_result(scratchpad, status="in_progress")
-                    else:
-                        yield None
-            assert scratchpad.finish_reason
-            scratchpad.finalize()
-
-            yield self._json_result(scratchpad, status="completed")
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-            yield None
+    def _from_pretrained(self, model: str):
+        self._model = CodifyModel.from_pretrained(str(self._workdir / "weights"), repo_id="reymondzzz/testmodel")
+        if self._device.startswith("cuda"):
+            self._model = self._model.to(torch.half)
+        self._model = self._model.eval()
+        self._encoding = self._model.config.encoding
 
     @staticmethod
     def _json_result(scratchpad,
@@ -134,3 +124,36 @@ class Inference:
             "generated_tokens_n": scratchpad.generated_tokens_n,
             **scratchpad.toplevel_fields(),
         }
+
+    @property
+    def ready(self):
+        return self._model is not None and self._encoding is not None
+
+    def startup(self, model: str):
+        if self.ready:
+            return False
+
+        startup_thread = Thread(
+            target=self._from_pretrained,
+            kwargs={'model': model})
+        startup_thread.start()
+
+        return True
+
+    def infer(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
+        try:
+            scratchpad, tokens_prompt = self._prepare_scratchpad(request)
+            with torch.inference_mode():
+                for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
+                    if scratchpad.needs_upload and stream:
+                        yield self._json_result(scratchpad, status="in_progress")
+                    else:
+                        yield None
+            assert scratchpad.finish_reason
+            scratchpad.finalize()
+
+            yield self._json_result(scratchpad, status="completed")
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+            yield None
