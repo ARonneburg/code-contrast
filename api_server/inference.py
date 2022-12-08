@@ -18,7 +18,7 @@ class Inference:
 
     def __init__(self, workdir: Path, force_cpu: bool):
         self._workdir = workdir
-        self._device = "cuda" if torch.has_cuda and not force_cpu else "cpu"
+        self._device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
         self._model = None
         self._encoding = None
 
