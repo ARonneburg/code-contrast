@@ -7,11 +7,11 @@ from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI
 
-from api_server.inference import Inference
-from api_server.utils import TokenHandler
-from api_server.routers import GreetingsRouter
-from api_server.routers import CompletionRouter
-from api_server.routers import ContrastRouter
+from self_hosting.inference import Inference
+from self_hosting.utils import TokenHandler
+from self_hosting.routers import GreetingsRouter
+from self_hosting.routers import CompletionRouter
+from self_hosting.routers import ContrastRouter
 
 
 if __name__ == "__main__":

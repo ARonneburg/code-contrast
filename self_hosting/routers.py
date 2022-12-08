@@ -10,10 +10,10 @@ from fastapi.responses import StreamingResponse
 
 from uuid import uuid4
 
-from api_server.params import TextSamplingParams
-from api_server.params import DiffSamplingParams
-from api_server.utils import TokenHandler
-from api_server.inference import Inference
+from self_hosting.params import TextSamplingParams
+from self_hosting.params import DiffSamplingParams
+from self_hosting.utils import TokenHandler
+from self_hosting.inference import Inference
 
 from typing import Dict, Any
 
