@@ -39,4 +39,7 @@ RUN pip install --no-cache-dir cloudpickle dataclasses_json huggingface_hub blob
 RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cu116
 RUN pip install --no-cache-dir git+https://github.com/smallcloudai/code-contrast.git
 
-CMD ["/bin/bash"]
+ENV SERVER_WORKDIR=/workdir
+ENV SERVER_PORT=8008
+
+CMD ["python", "-m", "self_hosting.watchdog", "--workdir", "/workdir"]

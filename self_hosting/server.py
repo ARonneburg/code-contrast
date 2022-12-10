@@ -18,9 +18,9 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8008)
-    parser.add_argument("--workdir", type=Path, default=Path("/workdir"))
     parser.add_argument("--cpu", action="store_true")
-    parser.add_argument("--token", type=str, required=True)
+    parser.add_argument("--workdir", type=Path)
+    parser.add_argument("--token", type=str)
     args = parser.parse_args()
 
     logdir = args.workdir / "logs"

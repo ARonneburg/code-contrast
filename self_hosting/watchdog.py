@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import logging
@@ -89,12 +90,9 @@ class Watchdog:
 
 
 if __name__ == "__main__":
-    import os
-
     workdir = str(os.environ.get("SERVER_WORKDIR"))
     port = int(os.environ.get("SERVER_PORT"))
-    token = os.environ.get("SERVER_API_TOKEN")
-    # DEBUG
+    token = os.environ.get("SERVER_API_TOKEN", None)
 
     logdir = Path(workdir) / "logs"
     logdir.mkdir(exist_ok=True, parents=False)
