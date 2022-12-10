@@ -13,13 +13,13 @@ from typing import Optional
 class Watchdog:
 
     def __init__(self,
-                 host: str,
                  port: int,
-                 workdir: Path,
-                 failed_upgrade_quit: bool):
-        self._host = host
+                 workdir: str,
+                 token: str,
+                 failed_upgrade_quit: bool = False):
         self._port = port
         self._workdir = workdir
+        self._token = token
         self._failed_upgrade_quit = failed_upgrade_quit
 
         self._quit_flag = False
@@ -49,14 +49,14 @@ class Watchdog:
                 sys.executable,
                 "-m",
                 "self_hosting.server",
-                f"--host={self._host}",
                 f"--port={self._port}",
                 f"--workdir={self._workdir}",
+                f"--token={self._token}",
             ]
             process = subprocess.Popen(
                 command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stdout=sys.stdout,
+                stderr=sys.stderr,
             )
             logging.info(f"server started pid={process.pid}")
             return process
@@ -89,16 +89,14 @@ class Watchdog:
 
 
 if __name__ == "__main__":
-    from argparse import ArgumentParser
+    import os
 
-    parser = ArgumentParser()
-    parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8008)
-    parser.add_argument("--workdir", type=Path, default=Path("/working_volume"))
-    parser.add_argument("--failed-upgrade-quit", action="store_true")
-    args = parser.parse_args()
+    workdir = str(os.environ.get("SERVER_WORKDIR"))
+    port = int(os.environ.get("SERVER_PORT"))
+    token = os.environ.get("SERVER_API_TOKEN")
+    # DEBUG
 
-    logdir = args.workdir / "logs"
+    logdir = Path(workdir) / "logs"
     logdir.mkdir(exist_ok=True, parents=False)
     file_handler = logging.FileHandler(filename=logdir / f"watchdog_{datetime.now():%Y-%m-%d-%H-%M-%S}.log")
     stream_handler = logging.StreamHandler(stream=sys.stdout)
@@ -109,9 +107,8 @@ if __name__ == "__main__":
                         datefmt='%Y-%m-%d %H:%M:%S')
 
     watchdog = Watchdog(
-        host=args.host,
-        port=args.port,
-        workdir=args.workdir,
-        failed_upgrade_quit=args.failed_upgrade_quit,
+        port=port,
+        workdir=workdir,
+        token=token,
     )
     watchdog.run()

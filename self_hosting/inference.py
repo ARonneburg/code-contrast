@@ -1,11 +1,13 @@
-import logging
-
 import torch
+import logging
+import requests
 import time
 import traceback
 
 from pathlib import Path
 from threading import Thread
+from threading import Lock
+from contextlib import contextmanager
 
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
@@ -14,13 +16,48 @@ from code_contrast import CodifyModel
 from typing import Optional, Union, Dict, Any, Iterable
 
 
+__all__ = ["Inference", "LockedError", "NoSettedModel", "InvalidModel"]
+
+
+class LockedError(Exception):
+    pass
+
+
+class NoSettedModel(Exception):
+    pass
+
+
+class InvalidModel(Exception):
+    pass
+
+
+@contextmanager
+def non_blocking_lock(lock: Lock):
+    if not lock.acquire(blocking=False):
+        raise LockedError
+    try:
+        yield lock
+    finally:
+        lock.release()
+
+
 class Inference:
 
-    def __init__(self, workdir: Path, force_cpu: bool):
-        self._workdir = workdir
+    def __init__(self, token: str, workdir: Path, force_cpu: bool):
         self._device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
+
+        self._model_lock = Lock()
         self._model = None
         self._encoding = None
+        self._model_name = None
+
+        self._model_setup_thread = Thread(
+            target=self._model_setup,
+            kwargs={
+                'workdir': workdir,
+                "token": token,
+            })
+        self._model_setup_thread.start()
 
     def _prepare_scratchpad(self, request: Dict[str, Any]):
         created_ts = time.time()
@@ -95,21 +132,45 @@ class Inference:
         if not scratchpad.finish_reason:
             scratchpad.finish_reason = "maxlen"
 
-    def _from_pretrained(self, model: str):
-        try:
-            self._model = CodifyModel.from_pretrained(str(self._workdir / "weights"), repo_id="reymondzzz/testmodel")
-            self._model.to(self._device)
-            if self._device.startswith("cuda"):
-                self._model = self._model.to(torch.half)
-            self._model = self._model.eval()
-            self._encoding = self._model.config.encoding
-        except Exception as e:
-            logging.error("model loading failed:")
-            logging.error(e)
+    @staticmethod
+    def _fetch_model(token) -> str:
+        url = "https://max.smallcloud.ai/v1/tenant-info"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+        response = requests.get(url=url, headers=headers)
+        return response.json()["model"]
+
+    def _model_setup(self, token: str, workdir: Path):
+        fetch_timeout = 1
+        while True:
+            # try:
+            #     model_name = self._fetch_model(token)
+            # except:
+            #     pass
+            model_name = "reymondzzz/testmodel"
+            if model_name == self._model_name:
+                time.sleep(fetch_timeout)
+                continue
+            with self._model_lock:
+                try:
+                    self._model = CodifyModel.from_pretrained(
+                        str(workdir / "weights"), repo_id=model_name)
+                    self._model.to(self._device)
+                    if self._device.startswith("cuda"):
+                        self._model = self._model.to(torch.half)
+                    self._model = self._model.eval()
+                    self._encoding = self._model.config.encoding
+                    self._model_name = model_name
+                    fetch_timeout = 1
+                except Exception as e:
+                    self._model = None
+                    self._encoding = None
+                    self._model_name = None
+                    fetch_timeout = 10
+                    logging.error("model loading failed:")
+                    logging.error(e)
 
     @staticmethod
-    def _json_result(scratchpad,
-                     status: str):
+    def _json_result(scratchpad, status: str):
         assert status in ["in_progress", "completed"]
         return {
             "id": scratchpad.id,
@@ -130,35 +191,24 @@ class Inference:
             **scratchpad.toplevel_fields(),
         }
 
-    @property
-    def ready(self):
-        return self._model is not None and self._encoding is not None
-
-    def startup(self, model: str):
-        if self.ready:
-            return False
-
-        startup_thread = Thread(
-            target=self._from_pretrained,
-            kwargs={'model': model})
-        startup_thread.start()
-
-        return True
-
     def infer(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
-        try:
-            scratchpad, tokens_prompt = self._prepare_scratchpad(request)
-            with torch.inference_mode():
-                for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
-                    if scratchpad.needs_upload and stream:
-                        yield self._json_result(scratchpad, status="in_progress")
-                    else:
-                        yield None
-            assert scratchpad.finish_reason
-            scratchpad.finalize()
-
-            yield self._json_result(scratchpad, status="completed")
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-            yield None
+        with non_blocking_lock(self._model_lock):
+            if self._model_name is None:
+                raise NoSettedModel
+            if request["model"] != self._model_name:
+                raise InvalidModel
+            try:
+                scratchpad, tokens_prompt = self._prepare_scratchpad(request)
+                with torch.inference_mode():
+                    for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
+                        if scratchpad.needs_upload and stream:
+                            yield self._json_result(scratchpad, status="in_progress")
+                        else:
+                            yield None
+                assert scratchpad.finish_reason
+                scratchpad.finalize()
+                yield self._json_result(scratchpad, status="completed")
+            except Exception as e:
+                logging.error(e)
+                logging.error(traceback.format_exc())
+                yield None

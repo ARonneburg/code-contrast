@@ -1,9 +1,7 @@
 import asyncio
-import requests
 import json
 
 from fastapi import Header
-from fastapi import Response
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
@@ -12,13 +10,16 @@ from uuid import uuid4
 
 from self_hosting.params import TextSamplingParams
 from self_hosting.params import DiffSamplingParams
-from self_hosting.utils import TokenHandler
+
 from self_hosting.inference import Inference
+from self_hosting.inference import LockedError
+from self_hosting.inference import NoSettedModel
+from self_hosting.inference import InvalidModel
 
 from typing import Dict, Any
 
 
-__all__ = ["GreetingsRouter", "CompletionRouter", "ContrastRouter"]
+__all__ = ["CompletionRouter", "ContrastRouter"]
 
 
 async def inference_streamer(
@@ -34,6 +35,12 @@ async def inference_streamer(
             yield data
         if stream:
             yield "data: [DONE]" + "\n\n"
+    except LockedError:
+        raise HTTPException(status_code=401, detail="Server loads a model")
+    except NoSettedModel:
+        raise HTTPException(status_code=401, detail="Server is not ready")
+    except InvalidModel:
+        raise HTTPException(status_code=401, detail="Server have different model")
     except asyncio.CancelledError:
         pass
 
@@ -47,50 +54,10 @@ def parse_authorization_header(authorization: str = Header(None)) -> str:
     return bearer_hdr[1]
 
 
-class GreetingsRouter(APIRouter):
-
-    def __init__(self,
-                 token: TokenHandler,
-                 inference: Inference,
-                 *args, **kwargs):
-        self._token = token
-        self._inference = inference
-        super(GreetingsRouter, self).__init__(*args, **kwargs)
-        super(GreetingsRouter, self).add_api_route("/greetings", self._greetings, methods=["GET"])
-
-    @staticmethod
-    def _get_user_info(token) -> Dict[str, Any]:
-        url = "https://max.smallcloud.ai/v1/tenant-info"
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-        response = requests.get(url=url, headers=headers)
-        return response.json()
-
-    async def _greetings(self, authorization: str = Header(None)):
-        token = parse_authorization_header(authorization)
-
-        user_info = self._get_user_info(token)
-        if user_info.get("retcode", "") != "OK":
-            raise HTTPException(status_code=401, detail="Could not get user info")
-        model = user_info.get("tentant_info", {}).get("model", "")  # TODO
-
-        server_token = self._token.get()
-        if server_token is None:
-            self._token.set(token)
-        elif server_token != token:
-            raise HTTPException(status_code=401, detail="This server cannot work with your API key")
-
-        if not self._inference.ready:
-            self._inference.startup(model)
-
-        return Response(content=json.dumps({
-            "status": "ready" if self._inference.ready else "startup",
-        }))
-
-
 class CompletionRouter(APIRouter):
 
     def __init__(self,
-                 token: TokenHandler,
+                 token: str,
                  inference: Inference,
                  *args, **kwargs):
         self._token = token
@@ -102,14 +69,13 @@ class CompletionRouter(APIRouter):
                           post: TextSamplingParams,
                           authorization: str = Header(None)):
         token = parse_authorization_header(authorization)
-        if not self._inference.ready:
-            raise HTTPException(status_code=401, detail="Server is not ready")
-        if self._token.get() != token:
+        if self._token != token:
             raise HTTPException(status_code=401, detail="This server cannot work with your API key")
         request = post.clamp()
         request.update({
             "id": str(uuid4()),
             "object": "text_completion_req",
+            "model": post.model,
             "prompt": post.prompt,
             "stop_tokens": post.stop,
             "stream": post.stream,
@@ -120,7 +86,7 @@ class CompletionRouter(APIRouter):
 class ContrastRouter(APIRouter):
 
     def __init__(self,
-                 token: TokenHandler,
+                 token: str,
                  inference: Inference,
                  *args, **kwargs):
         self._token = token
@@ -132,9 +98,7 @@ class ContrastRouter(APIRouter):
                         post: DiffSamplingParams,
                         authorization: str = Header(None)):
         token = parse_authorization_header(authorization)
-        if not self._inference.ready:
-            raise HTTPException(status_code=401, detail="Server is not ready")
-        if self._token.get() != token:
+        if self._token != token:
             raise HTTPException(status_code=401, detail="This server cannot work with your API key")
         if post.function != "diff-anywhere":
             if post.cursor_file not in post.sources:
@@ -157,6 +121,7 @@ class ContrastRouter(APIRouter):
         request.update({
             "id": str(uuid4()),
             "object": "diff_completion_req",
+            "model": post.model,
             "intent": post.intent,
             "sources": post.sources,
             "cursor_file": post.cursor_file,
