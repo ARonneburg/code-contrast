@@ -8,10 +8,6 @@ from code_contrast.modeling.config import Config
 from typing import Optional
 
 
-# TODO: remove ASAP
-token = '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'
-
-
 def _load_gs_file(root_path: str, filename: str):
     import blobfile as bf
     rest = root_path[len("gs://"):]
@@ -42,7 +38,6 @@ def _load_filename(root_path: str, filename: str, repo_id: Optional[str] = None)
         args = dict(
             repo_id=repo_id,
             filename=filename,
-            token=token,
             cache_dir=root_path,
         )
         try:
