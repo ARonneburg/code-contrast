@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from self_hosting.inference import Inference
+from self_hosting.routers import ActivateRouter
 from self_hosting.routers import CompletionRouter
 from self_hosting.routers import ContrastRouter
 
@@ -32,6 +33,7 @@ if __name__ == "__main__":
     inference = Inference(token=args.token, workdir=args.workdir, force_cpu=args.cpu)
 
     app = FastAPI(docs_url=None)
+    app.include_router(ActivateRouter(args.token))
     app.include_router(CompletionRouter(args.token, inference))
     app.include_router(ContrastRouter(args.token, inference))
 

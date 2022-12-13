@@ -4,6 +4,7 @@ import json
 from fastapi import Header
 from fastapi import APIRouter
 from fastapi import HTTPException
+from fastapi import Response
 from fastapi.responses import StreamingResponse
 
 from uuid import uuid4
@@ -16,7 +17,7 @@ from self_hosting.inference import Inference
 from typing import Dict, Any
 
 
-__all__ = ["CompletionRouter", "ContrastRouter"]
+__all__ = ["ActivateRouter", "CompletionRouter", "ContrastRouter"]
 
 
 async def inference_streamer(
@@ -44,6 +45,28 @@ def parse_authorization_header(authorization: str = Header(None)) -> str:
     if len(bearer_hdr) != 2 or bearer_hdr[0] != "Bearer":
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     return bearer_hdr[1]
+
+
+class ActivateRouter(APIRouter):
+
+    def __init__(self,
+                 token: str,
+                 *args, **kwargs):
+        self._token = token
+        super(ActivateRouter, self).__init__(*args, **kwargs)
+        super(ActivateRouter, self).add_api_route("/secret-key-activate", self._activate, methods=["GET"])
+
+    async def _activate(self,
+                        authorization: str = Header(None)):
+        token = parse_authorization_header(authorization)
+        if self._token != token:
+            raise HTTPException(status_code=401, detail="This server cannot work with your API key")
+        response = {
+            "retcode": "OK",
+            "human_readable_message": "API key verified"
+        }
+        return Response(content=json.dumps(response))
+
 
 
 class CompletionRouter(APIRouter):
