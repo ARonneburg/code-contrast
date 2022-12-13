@@ -12,6 +12,7 @@ from self_hosting.params import TextSamplingParams
 from self_hosting.params import DiffSamplingParams
 
 from self_hosting.inference import Inference
+from self_hosting.inference import LockedInference
 from self_hosting.inference import LockedError
 from self_hosting.inference import NoSettedModel
 from self_hosting.inference import InvalidModel
@@ -23,7 +24,8 @@ __all__ = ["CompletionRouter", "ContrastRouter"]
 
 
 async def inference_streamer(
-        request: Dict[str, Any], inference: Inference):
+        request: Dict[str, Any],
+        inference: LockedInference):
     try:
         stream = request["stream"]
         for response in inference.infer(request, stream):
@@ -35,12 +37,6 @@ async def inference_streamer(
             yield data
         if stream:
             yield "data: [DONE]" + "\n\n"
-    except LockedError:
-        raise HTTPException(status_code=401, detail="Server loads a model")
-    except NoSettedModel:
-        raise HTTPException(status_code=401, detail="Server is not ready")
-    except InvalidModel:
-        raise HTTPException(status_code=401, detail="Server have different model")
     except asyncio.CancelledError:
         pass
 
@@ -80,7 +76,15 @@ class CompletionRouter(APIRouter):
             "stop_tokens": post.stop,
             "stream": post.stream,
         })
-        return StreamingResponse(inference_streamer(request, self._inference))
+        try:
+            inference = self._inference.locked_inference(post.model)
+            return StreamingResponse(inference_streamer(request, inference))
+        except LockedError:
+            raise HTTPException(status_code=401, detail="Server loads a model")
+        except NoSettedModel:
+            raise HTTPException(status_code=401, detail="Server is not ready")
+        except InvalidModel:
+            raise HTTPException(status_code=401, detail="Server have different model")
 
 
 class ContrastRouter(APIRouter):
@@ -132,4 +136,12 @@ class ContrastRouter(APIRouter):
             "stop_tokens": post.stop,
             "stream": post.stream,
         })
-        return StreamingResponse(inference_streamer(request, self._inference))
+        try:
+            inference = self._inference.locked_inference(post.model)
+            return StreamingResponse(inference_streamer(request, inference))
+        except LockedError:
+            raise HTTPException(status_code=401, detail="Server loads a model")
+        except NoSettedModel:
+            raise HTTPException(status_code=401, detail="Server is not ready")
+        except InvalidModel:
+            raise HTTPException(status_code=401, detail="Server have different model")

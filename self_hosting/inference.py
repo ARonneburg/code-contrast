@@ -7,16 +7,16 @@ import traceback
 from pathlib import Path
 from threading import Thread
 from threading import Lock
-from contextlib import contextmanager
 
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
 from code_contrast import CodifyModel
 
-from typing import Optional, Union, Dict, Any, Iterable
+from typing import Optional, Union, Dict, Any, Iterable, Tuple
 
 
-__all__ = ["Inference", "LockedError", "NoSettedModel", "InvalidModel"]
+__all__ = ["Inference", "LockedInference",
+           "LockedError", "NoSettedModel", "InvalidModel"]
 
 
 class LockedError(Exception):
@@ -29,16 +29,6 @@ class NoSettedModel(Exception):
 
 class InvalidModel(Exception):
     pass
-
-
-@contextmanager
-def non_blocking_lock(lock: Lock):
-    if not lock.acquire(blocking=False):
-        raise LockedError
-    try:
-        yield lock
-    finally:
-        lock.release()
 
 
 class Inference:
@@ -133,27 +123,43 @@ class Inference:
             scratchpad.finish_reason = "maxlen"
 
     @staticmethod
-    def _fetch_model(token) -> str:
-        url = "https://max.smallcloud.ai/v1/tenant-info"
+    def _fetch_model(token) -> Tuple[str, str]:
+        url = "https://max.smallcloud.ai/v1/codify-model"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-        response = requests.get(url=url, headers=headers)
-        return response.json()["model"]
+        response = requests.get(url=url, headers=headers).json()
+        if response["retcode"] != "OK":
+            raise RuntimeError(response.get("human_readable_message", "unknown error"))
+        print(response)
+        model_name = response["tentant_model"]["model_name"]
+        model_path = response["tentant_model"]["model_path"]
+        model_path_type = response["tentant_model"]["model_path_type"]
+        if model_path_type not in ["huggingface"]:
+            raise RuntimeError(f"unknown model path type {model_path_type}")
+        return model_name, model_path
 
     def _model_setup(self, token: str, workdir: Path):
-        fetch_timeout = 1
+        fetch_timeout = 30
         while True:
             # try:
-            #     model_name = self._fetch_model(token)
-            # except:
-            #     pass
-            model_name = "reymondzzz/testmodel"
+            #     model_name, model_path = self._fetch_model(token)
+            # except Exception as e:
+            #     self._model = None
+            #     self._encoding = None
+            #     self._model_name = None
+            #     time.sleep(fetch_timeout)
+            #     logging.error("model fetch failed:")
+            #     logging.error(e)
+            #     continue
+            model_name = "CONTRASTcode/medium"
+            model_path = "smallcloudai/codify_medium_py"
             if model_name == self._model_name:
                 time.sleep(fetch_timeout)
                 continue
             with self._model_lock:
                 try:
+                    time.sleep(10)
                     self._model = CodifyModel.from_pretrained(
-                        str(workdir / "weights"), repo_id=model_name)
+                        str(workdir / "weights"), repo_id=model_path)
                     self._model.to(self._device)
                     if self._device.startswith("cuda"):
                         self._model = self._model.to(torch.half)
@@ -165,7 +171,7 @@ class Inference:
                     self._model = None
                     self._encoding = None
                     self._model_name = None
-                    fetch_timeout = 10
+                    fetch_timeout = 60
                     logging.error("model loading failed:")
                     logging.error(e)
 
@@ -191,24 +197,48 @@ class Inference:
             **scratchpad.toplevel_fields(),
         }
 
+    @property
+    def lock(self):
+        return self._model_lock
+
     def infer(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
-        with non_blocking_lock(self._model_lock):
-            if self._model_name is None:
-                raise NoSettedModel
-            if request["model"] != self._model_name:
-                raise InvalidModel
-            try:
-                scratchpad, tokens_prompt = self._prepare_scratchpad(request)
-                with torch.inference_mode():
-                    for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
-                        if scratchpad.needs_upload and stream:
-                            yield self._json_result(scratchpad, status="in_progress")
-                        else:
-                            yield None
-                assert scratchpad.finish_reason
-                scratchpad.finalize()
-                yield self._json_result(scratchpad, status="completed")
-            except Exception as e:
-                logging.error(e)
-                logging.error(traceback.format_exc())
-                yield None
+        try:
+            scratchpad, tokens_prompt = self._prepare_scratchpad(request)
+            with torch.inference_mode():
+                for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
+                    print("token")
+                    if scratchpad.needs_upload and stream:
+                        yield self._json_result(scratchpad, status="in_progress")
+                    else:
+                        yield None
+            assert scratchpad.finish_reason
+            scratchpad.finalize()
+            yield self._json_result(scratchpad, status="completed")
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+            yield None
+
+    def locked_inference(self, model_name):
+        print(model_name, self._model_name)
+        if not self._model_lock.acquire(blocking=False):
+            raise LockedError
+        if self._model_name is None:
+            raise NoSettedModel
+        if model_name != self._model_name:
+            raise InvalidModel
+        return LockedInference(self)
+
+
+class LockedInference:
+
+    def __init__(self, inference: Inference):
+        self._inference = inference
+        assert self._inference.lock.locked()
+
+    def infer(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
+        for data in self._inference.infer(request, stream):
+            yield data
+
+    def __del__(self):
+        self._inference.lock.release()
