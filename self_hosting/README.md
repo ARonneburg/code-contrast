@@ -3,27 +3,53 @@
 This module implements simple server to work with **Codify** plugin.
 Please visit https://codify.smallcloud.ai for more info about this beautiful tool.
 
-### Run with docker
+## Get started
 
-First you need to install docker. Please follow instruction below:
-```shell
-https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-```
-Make sure that you have nvidia driver and GPU with at least 6Gb. Driver tested with image listed below:
+### Prepare docker
+
+To run server you need NVIDIA GPU with at least 6Gb memory and nvidia docker.
+
+<details>
+<summary> if you don't have nvidia docker </summary>
+
+First you need to install nvidia driver to your system. We tested image with driver listed below:
 ```bash
 wget https://download.nvidia.com/XFree86/Linux-x86_64/510.85.02/NVIDIA-Linux-x86_64-510.85.02.run
 ```
-After docker installation and setup pull latest pre-builded image:
+
+To install nvidia docker please follow instruction below:
 ```shell
-sudo docker pull smallcloud/self_hosting:latest
+https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
 ```
-Get codify api key from plugin and start inference server:
+
+Add your user to docker group to run docker without sudo:
+```bash
+sudo usermod -aG docker <your user>
+```
+
+</details>
+
+### Run server
+
+Get codify api key from plugin and run inference container:
 ```shell
-sudo docker run --gpus 0 -v self_hosting:/workdir --network="host" --env SERVER_API_TOKEN=<your plugin key> smallcloud/self_hosting
+docker run --gpus 0 --name self_hosting -p 8008:8008 --env SERVER_API_TOKEN=<token> smallcloud/self_hosting
 ```
+
+<details>
+<summary> note </summary>
+
+Next time you can start in with following command:
+```shell
+docker start -i self_hosting
+```
+
+</details>
+
 Go to plugin settings and set custom inference url:
 ```shell
 http://localhost:8008  # if you run server locally
 http://server_host_name:8008  # otherwise
 ```
+
 Now you can use your own server for codify!
