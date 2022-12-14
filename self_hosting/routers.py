@@ -54,7 +54,7 @@ class ActivateRouter(APIRouter):
                  *args, **kwargs):
         self._token = token
         super(ActivateRouter, self).__init__(*args, **kwargs)
-        super(ActivateRouter, self).add_api_route("/secret-key-activate", self._activate, methods=["GET"])
+        super(ActivateRouter, self).add_api_route("/v1/secret-key-activate", self._activate, methods=["GET"])
 
     async def _activate(self,
                         authorization: str = Header(None)):
@@ -78,7 +78,7 @@ class CompletionRouter(APIRouter):
         self._token = token
         self._inference = inference
         super(CompletionRouter, self).__init__(*args, **kwargs)
-        super(CompletionRouter, self).add_api_route("/completion", self._completion, methods=["POST"])
+        super(CompletionRouter, self).add_api_route("/v1/completion", self._completion, methods=["POST"])
 
     async def _completion(self,
                           post: TextSamplingParams,
@@ -111,7 +111,7 @@ class ContrastRouter(APIRouter):
         self._token = token
         self._inference = inference
         super(ContrastRouter, self).__init__(*args, **kwargs)
-        super(ContrastRouter, self).add_api_route("/contrast", self._contrast, methods=["POST"])
+        super(ContrastRouter, self).add_api_route("/v1/contrast", self._contrast, methods=["POST"])
 
     async def _contrast(self,
                         post: DiffSamplingParams,
