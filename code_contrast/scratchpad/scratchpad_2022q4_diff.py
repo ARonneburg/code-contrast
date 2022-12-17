@@ -74,6 +74,7 @@ class ScratchpadDiff(ScratchpadBase):
                 self.highlight_method4(m, b, logit, heads)
             self.state_before_first_tpos = False
         prev_token = self.diff.r[-1]
+        suggest_tokens = []
         logits_intrusion: Dict[int, float] = dict()
         if prev_token == self.enc.CHUNK:
             for tpos in self.increase_logits:
@@ -81,7 +82,7 @@ class ScratchpadDiff(ScratchpadBase):
         if (
                 self.diff_out_us is not None and
                 self.diff_out_us.state == contrast.DEL and
-                self.diff_out_us.brewing_edit.real_cursor != -1 and
+                self.diff_out_us.brewing_edit.real_delstart != -1 and
                 self.diff_out_us.brewing_edit.fn == self.cursor_file
         ):
             e = self.diff_out_us.brewing_edit
@@ -89,15 +90,18 @@ class ScratchpadDiff(ScratchpadBase):
             if self.tpos_cursor1 != -1:
                 tokens2 = self.cursorfile_tokens2
                 assert all(tokens2[i] == scratch[i] for i in range(len(tokens2)))
-                print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_cursor:e.real_delends]), "yellow"))
+                # print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_delstart:e.real_delends]), "yellow"))
+                print("suggest: [%s]" % termcolor.colored(self.enc.decode(scratch[e.real_delends:e.real_delends + 8]), "blue"))
+                suggest_tokens = scratch[e.real_delends:e.real_delends + 8]
                 beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
                 if beyond_selection >= -1:
                     extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends] if t == self.enc.LF])
                     if extra_newlines >= 0:
                         logits_intrusion[self.enc.ESCAPE] = 3.0 + 0.5 * extra_newlines
-                # edit works like this: scratch[e.real_cursor:e.real_delends] = e.toins
+                # edit works like this: scratch[e.real_delstart:e.real_delends] = e.toins
         return dict(
-            logits_intrusion=logits_intrusion
+            logits_intrusion=logits_intrusion,
+            suggest_tokens=suggest_tokens,
         )
 
     def after_token_selection(

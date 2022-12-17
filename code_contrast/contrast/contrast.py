@@ -31,7 +31,7 @@ class Edit:
     toins: List[int]
     i1: int = -1
     i2: int = -1
-    real_cursor: int = -1
+    real_delstart: int = -1
     real_delends: int = -1
     error: str = ""
     fuzzy: int = -1
@@ -606,7 +606,7 @@ class ContrastDiff:
             if len(tmp) != 1 or tmp not in indexin:
                 raise DecodeError("Invalid shift token at %i, decoded to '%s'" % (c, tmp))
             us.brewing_edit.shift = indexin.index(tmp)
-            us.brewing_edit.real_cursor = -1
+            us.brewing_edit.real_delstart = -1
             us.brewing_edit.fuzzy = self.untokenize_locate_edit(us)
             self.untokenize_finish_state(us, c)
             us.state = INS
@@ -681,7 +681,7 @@ class ContrastDiff:
         incomplete_todel = e.todel
         if len(incomplete_todel) <= 1 and e.shift == -1:
             return -1
-        if e.real_cursor == -1:
+        if e.real_delstart == -1:
             # search
             while 1:
                 sof = (tpos_scratch_idx - sub == 0)
@@ -712,40 +712,40 @@ class ContrastDiff:
                 e.error = "Cannot apply chunk %i, cannot find todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift)
                 return -1
             if len(candidates) == 1 or (e.shift != -1 and len(candidates) > 0):
-                fuzzy, e.real_cursor, e.real_delends = candidates[0]
+                fuzzy, e.real_delstart, e.real_delends = candidates[0]
                 return fuzzy
             return -1
         else:
             # no need to search, confirm existing
-            good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
+            good, _ = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
             if not good:
                 e.error = "Cannot apply chunk %i, cannot confirm todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift)
             else:
-                e.real_delends = e.real_cursor + len(e.todel)
+                e.real_delends = e.real_delstart + len(e.todel)
         return -1
 
     def edit_apply(self, us: UntokenizeState, ie: int, e: Edit):
         assert e.fn in us.scratch
         scratch = us.scratch[e.fn]
         orig2scratch = us.orig2scratch[e.fn]
-        assert e.real_cursor != -1
+        assert e.real_delstart != -1
         for future_edit in self.edits[ie+1:]:
-            if future_edit.real_cursor == -1:
+            if future_edit.real_delstart == -1:
                 continue
             if future_edit.fn != e.fn:
                 continue
             if future_edit.error:
                 continue
-            if future_edit.real_cursor > e.real_cursor:
-                shift = -(e.real_delends - e.real_cursor) + len(e.toins)
-                future_edit.real_cursor += shift
+            if future_edit.real_delstart > e.real_delstart:
+                shift = -(e.real_delends - e.real_delstart) + len(e.toins)
+                future_edit.real_delstart += shift
                 future_edit.real_delends += shift
-        good, _ = self._lookahead_ignoring_tpos(scratch, e.real_cursor, e.todel)
+        good, _ = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
         if not good:
             e.error = "cannot confirm todel tokens"
             return
-        scratch[e.real_cursor:e.real_delends] = e.toins
-        orig2scratch[e.real_cursor:e.real_delends] = [-1] * len(e.toins)
+        scratch[e.real_delstart:e.real_delends] = e.toins
+        orig2scratch[e.real_delstart:e.real_delends] = [-1] * len(e.toins)
         us.stats["chunks_applied"] += 1
 
     def apply_edits_return_dest(self, us: UntokenizeState):
