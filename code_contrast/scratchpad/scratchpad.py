@@ -7,6 +7,8 @@ from code_contrast.print_utils import hlprint
 
 from typing import Callable, Union, List, Set, Dict, Any, Optional
 
+from code_contrast.scratchpad.utils import temperature_top_k_top_p_filtering
+
 
 class ScratchpadBase:
     def __init__(
@@ -62,6 +64,8 @@ class ScratchpadBase:
             *,
             temperatures: th.Tensor,
             logits_intrusion: Optional[List[Dict[int, float]]] = None,
+            top_ps: Optional[List[float]] = None,
+            top_ks: Optional[List[int]] = None,
             **unused
     ):
         DEBUGLOG_TOP3 = False
@@ -75,8 +79,16 @@ class ScratchpadBase:
                             add))
                     logits[idx, :, t] += add
 
-        probs = (logits / temperatures).squeeze(1).softmax(dim=-1)
-        tokens.copy_(th.multinomial(probs, 1), non_blocking=True)
+        if top_ps is not None and top_ks is not None:
+            for b in range(logits.shape[0]):
+                logits[b, -1] = temperature_top_k_top_p_filtering(
+                    logits[b, -1], temperature=temperatures[b],
+                    top_p=top_ps[b], top_k=top_ks[b]
+                )
+            probs = logits.softmax(dim=-1)
+        else:
+            probs = (logits / temperatures).squeeze(1).softmax(dim=-1)
+        tokens.copy_(th.multinomial(probs, num_samples=1), non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
         if DEBUGLOG_TOP3:
