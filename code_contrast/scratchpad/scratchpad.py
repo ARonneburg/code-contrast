@@ -5,7 +5,7 @@ import time
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
 
-from typing import Callable, Union, List, Set, Dict, Any
+from typing import Callable, Union, List, Set, Dict, Any, Optional
 
 
 class ScratchpadBase:
@@ -54,6 +54,35 @@ class ScratchpadBase:
     def before_token_selection(self, m, **kwargs) -> Dict[str, Any]:
         raise NotImplementedError()
 
+    def select_tokens(
+            self,
+            logits: th.Tensor,
+            tokens: th.Tensor,
+            chosen_tokens: th.Tensor,
+            *,
+            temperatures: th.Tensor,
+            logits_intrusion: Optional[List[Dict[int, float]]] = None,
+            **unused
+    ):
+        DEBUGLOG_TOP3 = False
+        if logits_intrusion:
+            for idx, intr in enumerate(logits_intrusion):
+                for t, add in intr.items():
+                    if DEBUGLOG_TOP3:
+                        self.debuglog("logit for %s is %0.3f, adding %0.3f" % (
+                            hlprint(self.enc, [t]),
+                            logits[-1, t],
+                            add))
+                    logits[idx, :, t] += add
+
+        probs = (logits / temperatures).squeeze(1).softmax(dim=-1)
+        tokens.copy_(th.multinomial(probs, 1), non_blocking=True)
+        chosen_tokens.copy_(tokens, non_blocking=True)
+
+        if DEBUGLOG_TOP3:
+            self._log_top3(token=tokens[0], probs=probs[0])
+        return dict()
+
     def after_token_selection(self, m, **kwargs) -> Dict[str, Any]:
         raise NotImplementedError()
 
@@ -76,3 +105,19 @@ class ScratchpadBase:
     def debuglog(self, *args):
         elapsed = time.time() - self.created
         self._logger("%4.0fms" % (elapsed * 1000,), *args)
+
+    def _log_top3(
+            self,
+            token: th.Tensor,
+            probs: th.Tensor,
+    ):
+        def _format(t: str, color: str):
+            return "\"%s\"" % termcolor.colored(t.replace("\n", "\\n").replace("\r", "\\r"), color)
+
+        text = _format(self.enc.decode([token.item()]), "green").ljust(25)
+        text += " <= "
+        probs3, top3idx = map(lambda x: x.ravel().cpu().numpy(), probs.topk(4))
+        for p, i in zip(probs3, top3idx):
+            text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow"))
+            text += " %0.1f%%" % (100 * p)
+        self.debuglog("top3: %s" % text)
