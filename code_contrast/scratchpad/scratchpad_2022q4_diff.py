@@ -150,7 +150,7 @@ class ScratchpadDiff(ScratchpadBase):
                     finish("eot")
                     break
                 self.diff_out.untokenize_new_token(self.diff_out_us, t, self.diff_out_cursor)
-                if self.max_edits >= 0 and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits and self.diff_out_us.state == contrast.CHUNK:
+                if self.diff_out_us.state == contrast.CHUNK and self.max_edits >= 0 and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits:
                     finish("max-edits")
                     break
                 if self.diff_out_cursor >= self.no_stop_tokens_until and self.diff_out_us.state == contrast.INS:
@@ -326,13 +326,16 @@ class ScratchpadDiff(ScratchpadBase):
     def _find_selection_in_tokens(self):
         assert self.cursor0 > -1 and self.cursor1 > -1, "cursor not set cursor0=%i cursor1=%i" % (self.cursor0, self.cursor1)
         if self.cursorfile_tokens1 is None:
-            tokens1, tokens2, map2to1 = self._fn_create_map2to1(self.cursor_file)
+            tokens1, tokens2, map2to1 = self._fn_create_map2to1(self.cursor_file)    # works fast ~1ms
             self.cursorfile_tokens1 = tokens1
             self.cursorfile_tokens2 = tokens2
             self.cursorfile_map2to1 = map2to1
             assert len(map2to1) == len(tokens2)
-        self.t_cursor0, self.tpos_cursor0 = self._find_cursor_in_tokens(self.cursor0)
-        self.t_cursor1, self.tpos_cursor1 = self._find_cursor_in_tokens(self.cursor1)
+        self.t_cursor0, self.tpos_cursor0 = self._find_cursor_in_tokens(self.cursor0)   # works slow
+        if self.cursor1 != self.cursor0:
+            self.t_cursor1, self.tpos_cursor1 = self._find_cursor_in_tokens(self.cursor1)
+        else:
+            self.t_cursor1, self.tpos_cursor1 = self.t_cursor0, self.tpos_cursor0
         # self.debuglog(
         #     termcolor.colored(self.enc.decode(tokens2[:self.t_cursor0]), "yellow") +
         #     termcolor.colored("|", "green") +
