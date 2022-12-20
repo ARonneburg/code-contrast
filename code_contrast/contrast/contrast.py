@@ -18,7 +18,7 @@ from typing import List, Dict, Tuple, DefaultDict, Any, Set
 
 
 OFFSET_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-TPOS_HIGH_WATER = len(OFFSET_CHARS)   # equals 36
+TPOS_HIGH_WATER = len(OFFSET_CHARS)   # TODO: not necessary anymore, remove and run test
 TPOS_LOW_WATER = 16
 
 
@@ -285,13 +285,14 @@ class ContrastDiff:
             self.fn2tstart[fn] = len(self.r)
             without_tpos = 0
             cursor = 0
+            tinds = self.fn2tind[fn]
             def app(t, m):
                 self.r.append(t)
                 self.m.append(m)
-                self.fn2tind[fn].append(cursor if m else -1)
+                tinds.append(cursor if m else -1)
             for t in tlist:
                 # if without_tpos == TPOS_HIGH_WATER-1 or (without_tpos > TPOS_LOW_WATER and t==self.enc.LF):
-                if without_tpos > TPOS_LOW_WATER and t==self.enc.LF:
+                if t==self.enc.LF and without_tpos > TPOS_LOW_WATER:
                     app(tpos_unused.pop() if len(tpos_unused) > 0 else 0, 0)
                     without_tpos = 0
                 app(t, 1)
@@ -514,7 +515,7 @@ class ContrastDiff:
                         l += 1
                         bi += 1
                 self.orig_withpos[us.fn_txt] = buf    # all tokens, including cut off from top/bottom
-                us.scratch[us.fn_txt] = copy.deepcopy(buf)
+                us.scratch[us.fn_txt] = copy.copy(buf)
                 us.orig2scratch[us.fn_txt] = list(range(len(us.scratch[us.fn_txt]) + 1))   # Initially 1:1, differs after edits
             us.body_tokens = list()
             us.fn_txt = ""
@@ -848,14 +849,16 @@ example_odm = {
 
 
 def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
+    import time
+    t0 = time.time()
     test1 = ContrastDiff(enc)
-    for stochastic_tokens in [0.00]:
-        full_orig_tokens = test1.from_odm_dict(odm, n_ctx,
-            tight_shrink=tight_shrink,
-        )
-        test1.write_edits()
-        if verbose:
-            print("stochastic_tokens=%0.1f%% => %i tokens" % (stochastic_tokens * 100, len(test1.r)))
+    full_orig_tokens = test1.from_odm_dict(odm, n_ctx,
+        tight_shrink=tight_shrink,
+    )
+    test1.write_edits()
+    if verbose:
+        t1 = time.time()
+        print("prompt %0.2fms => %i tokens" % (1000*(t1 - t0), len(test1.r)))
     if len(test1.r) > 2*n_ctx:
         # Don't test because likely there will not be enough position tokens anyway
         return {}
