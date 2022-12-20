@@ -1,11 +1,12 @@
 import random
-import tokenizers
 import numpy as np
 
 from copy import copy
 from pathlib import Path
-
 from typing import List, Tuple
+
+import tiktoken
+from tiktoken.load import load_tiktoken_bpe
 
 
 __all__ = ["SMCEncoding"]
@@ -23,34 +24,74 @@ class SMCEncoding:
         self.LFLF = 0
         self.EOT = 0
         self._pos_tokens = []
-
-        filename = Path(__file__).resolve().parent / f"{name}.json"
-        self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
-        if name == "openai_reversible50000":
+        self._tokenizer = None
+        if name in ["openai_reversible50000", "openai_programming_v2"]:
             self.EOT = 50256
-            assert self.n_vocab == 50257
-        elif name == "openai_programming_v1":
-            self.EOT = 50256
-            assert self.n_vocab == 50281
-        elif name in ["openai_programming_v2", "openai_programming_v3"]:
-            self.EOT = 50256
-            self.LF = 198
-            self.LFLF = 628
-            self.ESCAPE = self._encode_token(" §§")
-            self._pos_tokens = list(range(50281, 50281 + 1024))
-            assert self.decode([self._pos_tokens[0]]) == "<XXXXX>"
-            assert self.decode([self._pos_tokens[-1]]) == "<VVVVV>"
-            LEAVE_LESS_TPOS = 256  # TODO: this must be an arg
-            # for 2000 diffs n_ctx=2048, selftest fails LEAVE_LESS_TPOS=256 => 12, LEAVE_LESS_TPOS=512 => 0
-            self._pos_tokens = self._pos_tokens[:LEAVE_LESS_TPOS]
-            if name == "openai_programming_v3":
-                self.INFILL = 51305
-                self.DIAMOND = 51306
-                self.MSG = 51307
-                self.FILE = 51308
-                self.CHUNK = 51309
-                assert self.n_vocab == 50281 + 1024 + 5
+            if name == "openai_reversible50000":
+                special_tokens = {
+                    "<|endoftext|>": 50256,
+                }
             else:
+                chars = "XYZV"
+                special_tokens = {
+                    "<|endoftext|>": 50256,
+                    "  ": 50257,
+                    "   ": 50258,
+                    "    ": 50259,
+                    "     ": 50260,
+                    "      ": 50261,
+                    "       ": 50262,
+                    "        ": 50263,
+                    "         ": 50264,
+                    "          ": 50265,
+                    "           ": 50266,
+                    "            ": 50267,
+                    "             ": 50268,
+                    "              ": 50269,
+                    "               ": 50270,
+                    "                ": 50271,
+                    "                 ": 50272,
+                    "                  ": 50273,
+                    "                   ": 50274,
+                    "                    ": 50275,
+                    "                     ": 50276,
+                    "                      ": 50277,
+                    "                       ": 50278,
+                    "                        ": 50279,
+                    "                         ": 50280,
+                }
+                position_tokens = ["⪦" +
+                        chars[i//4//4//4//4 % 4] +
+                        chars[i//4//4//4 % 4] +
+                        chars[i//4//4 % 4] +
+                        chars[i//4 % 4] +
+                        chars[i % 4] + "⪧"
+                        for i in range(1024)]
+                for i, postok in enumerate(position_tokens):
+                    special_tokens[postok] = 50281 + i
+            mergeable_ranks = load_tiktoken_bpe("az://openaipublic/encodings/r50k_base.tiktoken")
+            self._tik = tiktoken.Encoding(
+                name,
+                pat_str=r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""",
+                mergeable_ranks=mergeable_ranks,
+                special_tokens=special_tokens,
+            )
+            self.n_vocab = self._tik.n_vocab
+            if name == "openai_reversible50000":
+                assert self.n_vocab == 50257
+            else:
+                assert self.n_vocab == 51305
+            self.LF = self._encode_token("\n")
+            assert self.LF == 198
+            self.LFLF = self._encode_token("\n\n")
+            assert self.LFLF == 628
+            self.ESCAPE = self._encode_token(" §§")
+            if name == "openai_programming_v2":
+                self._pos_tokens = list(range(50281, 50281 + 1024))
+                assert self.decode([self._pos_tokens[0]]) == "⪦XXXXX⪧"
+                assert self.decode([self._pos_tokens[-1]]) == "⪦VVVVV⪧"
+                LEAVE_LESS_TPOS = 256
+                self._pos_tokens = self._pos_tokens[:LEAVE_LESS_TPOS]
                 self.INFILL = self._encode_token(" 裏覚醒")
                 self.DIAMOND = self._encode_token(" ●")
                 self.MSG = self._encode_token(" MSG")
@@ -58,26 +99,25 @@ class SMCEncoding:
                 self.CHUNK = self._encode_token(" ►")
                 assert self.n_vocab == 50281 + 1024
         elif name in ['fb1', 'fb3']:
+            import tokenizers
+            filename = Path(__file__).resolve().parent / f"{name}.json"
+            self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
             self.ESCAPE = 0
             self.DIAMOND = 1
             self.EOT = 2
             self.MSG = self._encode_token("MSG")
             self.FILE = self._encode_token("FILE")
             self.CHUNK = self._encode_token("CH")
+            self.n_vocab = self._tokenizer.get_vocab_size()
             if name == "fb1":
                 # Removed MASK tokens. Use for plain text.
                 assert self.n_vocab == 50261
             else:
-                # Removed MASK tokens, added position XXXXX tokens. Use to switch to diffs.
+                # Removed MASK tokens, added position XXXXX tokens.
                 assert self.n_vocab == 51285
                 self._pos_tokens = list(range(50261, 50261 + 1024))
                 assert self.decode([self._pos_tokens[0]]) == "⪦XXXXX⪧"
                 assert self.decode([self._pos_tokens[-1]]) == "⪦VVVVV⪧"
-        elif name == 'facebook_incoder':
-            # A useless encoding for our pursoses, don't use
-            self.ESCAPE = None
-            self.EOT = 2
-            assert self.n_vocab == 50518
         else:
             assert 0
 
@@ -90,17 +130,16 @@ class SMCEncoding:
     def tpos(self) -> List[int]:
         return copy(self._pos_tokens)
 
-    @property
-    def n_vocab(self) -> int:
-        return self._tokenizer.get_vocab_size()
-
     def is_tpos(self, token: int) -> bool:
         if not self._pos_tokens:
             return False
         return self._pos_tokens[0] <= token <= self._pos_tokens[-1]
 
     def encode(self, sequence: str) -> List[int]:
-        return self._tokenizer.encode(sequence).ids
+        if self._tokenizer:
+            return self._tokenizer.encode(sequence).ids
+        else:
+            return self._tik.encode_ordinary(sequence)
 
     def encode_stochastic(self, sequence, bounds_at: List[int], prob: float) -> Tuple[List[int], List[int]]:
         bounds_n = int(len(sequence) * prob)
@@ -135,4 +174,8 @@ class SMCEncoding:
             i = np.argmax(tokens == self.EOT)
             if i > 0:
                 tokens = tokens[:i]
-        return self._tokenizer.decode(tokens)
+        if self._tokenizer:
+            return self._tokenizer.decode(tokens)
+        else:
+            return self._tik.decode(tokens)
+

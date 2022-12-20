@@ -41,7 +41,6 @@ def test_incoder_derivatives(fn):
 
 if __name__ == "__main__":
     test_rev50000_derivatives("openai_reversible50000")
-    test_rev50000_derivatives("openai_programming_v1")
     test_rev50000_derivatives("openai_programming_v2")
     test_incoder_derivatives("facebook_incoder")
     test_incoder_derivatives("fb1")
