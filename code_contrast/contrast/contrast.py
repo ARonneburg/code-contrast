@@ -865,7 +865,7 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, 
     edit_classes = test1.edit_class_vector()
     if verbose:
         print(editclass_print(enc, test1.r, test1.m, edit_classes))
-        print(len(test1.r), "n_ctx=%i" % n_ctx)
+        print("tokens %i, n_ctx=%i", (len(test1.r), n_ctx))
     test2 = ContrastDiff(enc)
     test_odm_nodest = copy.deepcopy(odm)
     del test_odm_nodest["dest"]
