@@ -68,14 +68,14 @@ class ScratchpadBase:
             top_ks: Optional[List[int]] = None,
             **unused
     ):
-        DEBUGLOG_TOP3 = False
+        DEBUGLOG_TOP3 = True
         if logits_intrusion:
             for idx, intr in enumerate(logits_intrusion):
                 for t, add in intr.items():
                     if DEBUGLOG_TOP3:
                         self.debuglog("logit for %s is %0.3f, adding %0.3f" % (
                             hlprint(self.enc, [t]),
-                            logits[-1, t],
+                            logits[idx, -1, t],
                             add))
                     logits[idx, :, t] += add
 
