@@ -123,6 +123,8 @@ class ContrastDiff:
             # dest_lines = odm["dest"][fn].replace('\r\n', '\n').replace('\r', '\n').splitlines()
             orig_lines = [x+"\n" for x in odm["orig"][fn].splitlines()]
             dest_lines = [x+"\n" for x in odm["dest"][fn].splitlines()]
+            if len(orig_lines)==0:
+                orig_lines.append("\n")
             if orig_lines[-1][-1] != "\n":
                 orig_lines[-1] += "\n"
             if dest_lines[-1][-1] != "\n":
