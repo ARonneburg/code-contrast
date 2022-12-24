@@ -91,9 +91,10 @@ class ScratchpadBase:
         tokens.copy_(th.multinomial(probs, num_samples=1), non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
+        result = dict()
         if DEBUGLOG_TOP3:
-            self._log_top3(token=tokens[0], probs=probs[0])
-        return dict()
+            result["top3"] = self._log_top3(token=tokens[0], probs=probs[0])
+        return result
 
     def after_token_selection(self, m, **kwargs) -> Dict[str, Any]:
         raise NotImplementedError()
@@ -132,4 +133,4 @@ class ScratchpadBase:
         for p, i in zip(probs3, top3idx):
             text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow"))
             text += " %0.1f%%" % (100 * p)
-        self.debuglog("top3: %s" % text)
+        return text
