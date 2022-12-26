@@ -229,7 +229,7 @@ class ContrastDiff:
                 written_tpos = 0
                 for deli1, deli2 in file_deltokens[fn]:
                     written_deli1 = tinds.index(deli1 - cut)
-                    if written_i1 <= written_deli1 <= written_i2:  # Use first position token after the real changes stareted
+                    if written_i1 <= written_deli1 <= written_i2:  # Use the first position token after the real changes start
                         written_tpos = written_deli1
                         break
                 while tinds[written_tpos] != -1:
