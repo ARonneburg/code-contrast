@@ -754,19 +754,23 @@ class ContrastDiff:
     def apply_edits_return_dest(self, us: UntokenizeState):
         fn_unchanged = set(fn for fn in us.scratch)
         fn_changed = set()
+        self.errors.clear()
         for ie, e in enumerate(self.edits):
             # print("\napply %i" % ie)
             if e.shift == -1:
                 # unfinished chunk, nothing we can do
                 continue
             if e.error:
-                # print("error '%s'" % e.error)
+                self.errors.append(e.error)
                 continue
             assert e.fuzzy != -1
             us.stats["fuzzy"] += e.fuzzy
             if e.fuzzy:
                 print("chunk%i fuzzy" % ie, e.fuzzy)
             self.edit_apply(us, ie, e)
+            if e.error:
+                self.errors.append(e.error)
+                continue
             fn_changed.add(e.fn)
         fn_unchanged -= fn_changed
         for fn, scratch in us.scratch.items():

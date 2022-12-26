@@ -120,11 +120,13 @@ class ScratchpadDiff(ScratchpadBase):
 
     def completion(self, final: bool):
         if final and self.diff_out_us is not None:
+            self.diff_out_catch_up()
+            self.finalize()
             dest_tokens = self.diff_out.apply_edits_return_dest(self.diff_out_us)
             result = {}
             for fn in dest_tokens:
                 result[fn] = self.enc.decode(self.diff_out.dest_tokens[fn])
-            #self.debuglog(self.diff_out_us.stats, self.finish_reason)
+            self.debuglog("ScratchpadDiff: finalized", self.diff_out_us.stats, self.finish_reason)
             return result
         elif final:
             self.debuglog("ScratchpadDiff: nothing useful available")
@@ -141,7 +143,6 @@ class ScratchpadDiff(ScratchpadBase):
             return
         def finish(reason):
             self.finish_reason = reason
-            self.diff_out_us.eot = True
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
         try:
             while self.diff_out_cursor < len(self.diff.r):
@@ -168,7 +169,6 @@ class ScratchpadDiff(ScratchpadBase):
                 self.diff_out_cursor += 1
         except contrast.DecodeError as e:
             self.debuglog("Exception in diff_out.untokenize_new_token: %s" % e)
-            self.diff_out_us.eot = True
             self.finish_reason = "diff-application-error"
 
     def prompt_infill(self, T):
