@@ -1,3 +1,4 @@
+import os
 import torch as th
 import termcolor
 import time
@@ -8,6 +9,9 @@ from code_contrast.print_utils import hlprint
 from typing import Callable, Union, List, Set, Dict, Any, Optional
 
 from code_contrast.scratchpad.utils import temperature_top_k_top_p_filtering
+
+
+DEBUGLOG_TOP3 = int(os.environ.get("DEBUG", "0"))
 
 
 class ScratchpadBase:
@@ -68,7 +72,6 @@ class ScratchpadBase:
             top_ks: Optional[List[int]] = None,
             **unused
     ):
-        DEBUGLOG_TOP3 = True
         if logits_intrusion:
             for idx, intr in enumerate(logits_intrusion):
                 for t, add in intr.items():

@@ -207,7 +207,6 @@ class ContrastDiff:
             self.dest_tokens[fn] = dest_all_tokens
             assert 628 not in self.orig_tokens[fn]
             assert 44320 not in self.orig_tokens[fn]
-        # quit()
         random.shuffle(opblocks)
         raw_ops: List[Tuple[str, str, int, int, int, int]] = list()
         for opblock in opblocks:
