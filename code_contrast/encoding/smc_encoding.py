@@ -31,34 +31,11 @@ class SMCEncoding:
                 special_tokens = {
                     "<|endoftext|>": 50256,
                 }
+                tt_name = "az://openaipublic/encodings/r50k_base.tiktoken"
             else:
                 chars = "XYZV"
                 special_tokens = {
                     "<|endoftext|>": 50256,
-                    "  ": 50257,
-                    "   ": 50258,
-                    "    ": 50259,
-                    "     ": 50260,
-                    "      ": 50261,
-                    "       ": 50262,
-                    "        ": 50263,
-                    "         ": 50264,
-                    "          ": 50265,
-                    "           ": 50266,
-                    "            ": 50267,
-                    "             ": 50268,
-                    "              ": 50269,
-                    "               ": 50270,
-                    "                ": 50271,
-                    "                 ": 50272,
-                    "                  ": 50273,
-                    "                   ": 50274,
-                    "                    ": 50275,
-                    "                     ": 50276,
-                    "                      ": 50277,
-                    "                       ": 50278,
-                    "                        ": 50279,
-                    "                         ": 50280,
                 }
                 position_tokens = ["⪦" +
                         chars[i//4//4//4//4 % 4] +
@@ -69,7 +46,8 @@ class SMCEncoding:
                         for i in range(1024)]
                 for i, postok in enumerate(position_tokens):
                     special_tokens[postok] = 50281 + i
-            mergeable_ranks = load_tiktoken_bpe("az://openaipublic/encodings/r50k_base.tiktoken")
+                tt_name = "az://openaipublic/encodings/p50k_base.tiktoken"
+            mergeable_ranks = load_tiktoken_bpe(tt_name)
             self._tik = tiktoken.Encoding(
                 name,
                 pat_str=r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""",
@@ -77,6 +55,8 @@ class SMCEncoding:
                 special_tokens=special_tokens,
             )
             self.n_vocab = self._tik.n_vocab
+            # for i in range(self._tik.n_vocab):
+            #     print("%05i \"%s\"" % (i, self._tik.decode([i]).replace("\n", "\\n")))
             if name == "openai_reversible50000":
                 assert self.n_vocab == 50257
             else:
@@ -122,7 +102,10 @@ class SMCEncoding:
             assert 0
 
     def _encode_token(self, text: str) -> int:
-        tokens = self.encode(text)
+        if self._tokenizer:
+            tokens = self._tokenizer.encode(text).ids
+        else:
+            tokens = self._tik.encode_ordinary(text)
         assert len(tokens) == 1, (text, tokens)
         return tokens[0]
 
@@ -135,11 +118,24 @@ class SMCEncoding:
             return False
         return self._pos_tokens[0] <= token <= self._pos_tokens[-1]
 
-    def encode(self, sequence: str) -> List[int]:
+    def encode(self, txt: str) -> List[int]:
         if self._tokenizer:
-            return self._tokenizer.encode(sequence).ids
+            return self._tokenizer.encode(txt).ids
         else:
-            return self._tik.encode_ordinary(sequence)
+            result = []
+            cursor = 0
+            while 1:
+                slash_n = txt.find("\n", cursor)
+                if slash_n == -1:
+                    more = self._tik.encode_ordinary(txt[cursor:])
+                    result.extend(more)
+                    break
+                else:
+                    more = self._tik.encode_ordinary(txt[cursor:slash_n])
+                    result.extend(more)
+                    result.append(self.LF)
+                cursor = slash_n + 1
+            return result
 
     def encode_stochastic(self, sequence, bounds_at: List[int], prob: float) -> Tuple[List[int], List[int]]:
         bounds_n = int(len(sequence) * prob)

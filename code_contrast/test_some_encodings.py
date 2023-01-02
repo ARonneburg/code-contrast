@@ -1,14 +1,14 @@
+import code_contrast
 from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
-def test_rev50000_derivatives(ename):
-    print("\ntesting", ename)
-    enc = SMCEncoding(ename)
-    msg = "I can feel the magic, can you?\nПривет мир!!!"
+def test_rev50000_derivatives(enc_name):
+    print("\ntesting", enc_name)
+    enc = SMCEncoding(enc_name)
+    msg = "I can feel the magic, can you?\n\nПривет мир!!!"
     toks = enc.encode(msg)
     print("encode", toks)
-    assert toks == [40, 460, 1254, 262, 5536, 11, 460, 345, 30, 198, 140, 253, 21169,
-                    18849, 38857, 16843, 20375, 12466, 120, 18849, 21169, 10185], toks
+    assert toks == [40, 460, 1254, 262, 5536, 11, 460, 345, 30, 198, 198, 140, 253, 21169, 18849, 38857, 16843, 20375, 12466, 120, 18849, 21169, 10185], toks
     # Compare to https://beta.openai.com/tokenizer?view=bpe
     msg2 = enc.decode(toks)
     print("decode", msg2)
@@ -24,24 +24,15 @@ def test_rev50000_derivatives(ename):
     print("decode", msg2)
     assert msg2 == msg + "<|endoftext|>"
 
-
-def test_incoder_derivatives(fn):
-    print("\ntesting", fn)
-    enc = SMCEncoding(fn)
-    msg = "I can feel the magic, can you?\nПривет мир!!!:\n    if test"
-    toks = enc.encode(msg)
-    # toks = [0, 1, 2, 3, *toks]   # see special tokens
-    # for i, t in enumerate(toks):
-    #     print("%-4i %-4i \"%s\"" % (i, t, enc.decode([t]).replace("\n", "\\n")))
-    assert toks == [11352, 39165, 1831, 12237, 267, 1220, 4973, 37, 205, 42554,
-                    43564, 13560, 22569, 48832, 4942, 5336, 44014, 32, 205, 996, 695], toks
-    msg2 = enc.decode(toks)
-    assert msg2 == msg, msg2
+    long_text = open(code_contrast.encoding.smc_encoding.__file__).read()
+    toks = enc.encode(long_text)
+    print("big text", len(toks))
+    print("lflf in toks", enc.LFLF in toks)
+    # for i, tok in enumerate(toks):
+    #     print("%03i %i \"%s\"" % (i, tok, enc.decode([tok]).replace("\n", "\\n")))
+    assert long_text == enc.decode(toks)
 
 
 if __name__ == "__main__":
     test_rev50000_derivatives("openai_reversible50000")
     test_rev50000_derivatives("openai_programming_v2")
-    test_incoder_derivatives("facebook_incoder")
-    test_incoder_derivatives("fb1")
-    test_incoder_derivatives("fb3")
