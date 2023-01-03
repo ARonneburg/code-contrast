@@ -376,7 +376,7 @@ class ScratchpadDiff(ScratchpadBase):
     def _fn_create_map2to1(self, fn):
         self.diff_out_catch_up()
         tokens1 = self.diff.orig_tokens[fn]      # equals to self.diff_out
-        tokens2 = self.diff_out.orig_withpos[fn] # all tokens including cutted out top/bottom, with postion tokens in the middle
+        tokens2 = self.diff_out.orig_withpos[fn] # all tokens including previously cut top/bottom, with postion tokens in the middle
         # print(hlprint(self.enc, tokens2))
         i1 = 0
         map2to1 = []

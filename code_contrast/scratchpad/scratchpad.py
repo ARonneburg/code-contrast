@@ -44,6 +44,7 @@ class ScratchpadBase:
         for s in stop_strings:
             if s == "\n\n":
                 self.stop_lf_lf = True
+                continue
             if s == "\n\n\n":
                 self.stop_lf_lf_lf = True
                 continue
@@ -51,7 +52,7 @@ class ScratchpadBase:
             if len(t) == 1:
                 self.stop_tokens.add(t[0])
             else:
-                self.debuglog("ScratchpadBase: cannot use '%s' as a stop token" % s)
+                self.debuglog("ScratchpadBase: cannot use '%s' as a stop token" % (s.replace("\n", "\\n")))
         for k, v in unused.items():
             self.debuglog("ScratchpadBase: unused parameter '%s' = '%s'" % (k, v))
         self.generated_tokens_n = 0

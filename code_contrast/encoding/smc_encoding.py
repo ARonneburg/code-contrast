@@ -25,59 +25,99 @@ class SMCEncoding:
         self.EOT = 0
         self._pos_tokens = []
         self._tokenizer = None
-        if name in ["openai_reversible50000", "openai_programming_v2"]:
+
+        if name in ["openai_reversible50000"]:
             self.EOT = 50256
-            if name == "openai_reversible50000":
-                special_tokens = {
-                    "<|endoftext|>": 50256,
-                }
-                tt_name = "az://openaipublic/encodings/r50k_base.tiktoken"
-            else:
-                chars = "XYZV"
-                special_tokens = {
-                    "<|endoftext|>": 50256,
-                }
-                position_tokens = ["⪦" +
-                        chars[i//4//4//4//4 % 4] +
-                        chars[i//4//4//4 % 4] +
-                        chars[i//4//4 % 4] +
-                        chars[i//4 % 4] +
-                        chars[i % 4] + "⪧"
-                        for i in range(1024)]
-                for i, postok in enumerate(position_tokens):
-                    special_tokens[postok] = 50281 + i
-                tt_name = "az://openaipublic/encodings/p50k_base.tiktoken"
-            mergeable_ranks = load_tiktoken_bpe(tt_name)
+            pat_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+            special_tokens = {
+                "<|endoftext|>": 50256,
+            }
+            mergeable_ranks = load_tiktoken_bpe("az://openaipublic/encodings/r50k_base.tiktoken")
             self._tik = tiktoken.Encoding(
                 name,
-                pat_str=r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""",
+                pat_str=pat_str,
                 mergeable_ranks=mergeable_ranks,
                 special_tokens=special_tokens,
             )
             self.n_vocab = self._tik.n_vocab
-            # for i in range(self._tik.n_vocab):
-            #     print("%05i \"%s\"" % (i, self._tik.decode([i]).replace("\n", "\\n")))
-            if name == "openai_reversible50000":
-                assert self.n_vocab == 50257
-            else:
-                assert self.n_vocab == 51305
+            assert self.n_vocab == 50257
             self.LF = self._encode_token("\n")
             assert self.LF == 198
             self.LFLF = self._encode_token("\n\n")
-            assert self.LFLF == 628
-            self.ESCAPE = self._encode_token(" §§")
-            if name == "openai_programming_v2":
-                self._pos_tokens = list(range(50281, 50281 + 1024))
-                assert self.decode([self._pos_tokens[0]]) == "⪦XXXXX⪧"
-                assert self.decode([self._pos_tokens[-1]]) == "⪦VVVVV⪧"
-                LEAVE_LESS_TPOS = 256
-                self._pos_tokens = self._pos_tokens[:LEAVE_LESS_TPOS]
-                self.INFILL = self._encode_token(" 裏覚醒")
-                self.DIAMOND = self._encode_token(" ●")
-                self.MSG = self._encode_token(" MSG")
-                self.FILE = self._encode_token(" FILE")
-                self.CHUNK = self._encode_token(" ►")
-                assert self.n_vocab == 50281 + 1024
+
+        elif name in ["openai_cl100k", "openai_programming_v2"]:
+            if name == "openai_cl100k":
+                tt_name = "az://openaipublic/encodings/cl100k_base.tiktoken"
+                pat_str = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
+                special_tokens = {
+                    "<|endoftext|>": 100257,
+                    "<|fim_prefix|>": 100258,
+                    "<|fim_middle|>": 100259,
+                    "<|fim_suffix|>": 100260,
+                    "<|endofprompt|>": 100276,
+                    "►": 100277,
+                    "●": 100278,
+                    "§": 100279,
+                }
+                self.EOT = 100257
+                self.INFILL = 100259
+                self.CHUNK = 100277
+                self.DIAMOND = 100278
+                self.ESCAPE = 100279
+                last_special_plus_one = 100280
+            elif name == "openai_programming_v2":
+                pat_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+                tt_name = "az://openaipublic/encodings/p50k_base.tiktoken"
+                special_tokens = {
+                    "<|endoftext|>": 50256,
+                    # "  ": 50257
+                    # ...space tokens...
+                    # "                         ": 50280,
+                }
+                self.EOT = 50256
+                self.ESCAPE = 47171   # " §§"
+                self.INFILL = 25992   # " 裏覚醒"
+                self.DIAMOND = 48049  # " ●"
+                self.CHUNK = 34933    # " ►"
+                last_special_plus_one = 50281
+            else:
+                assert 0
+            chars = "XYZV"
+            position_tokens = ["⪦" +
+                    chars[i//4//4//4//4 % 4] +
+                    chars[i//4//4//4 % 4] +
+                    chars[i//4//4 % 4] +
+                    chars[i//4 % 4] +
+                    chars[i % 4] + "⪧"
+                    for i in range(1024)]
+            for i, postok in enumerate(position_tokens):
+                special_tokens[postok] = last_special_plus_one + i
+            self._pos_tokens = list(range(last_special_plus_one, last_special_plus_one + 1024))
+
+            mergeable_ranks = load_tiktoken_bpe(tt_name)
+            self._tik = tiktoken.Encoding(
+                name,
+                pat_str=pat_str,
+                mergeable_ranks=mergeable_ranks,
+                special_tokens=special_tokens,
+            )
+            self.n_vocab = self._tik.n_vocab
+            if name == "openai_cl100k":
+                assert self.n_vocab == 101304
+            elif name == "openai_programming_v2":
+                assert self.n_vocab == 51305
+            else:
+                assert 0
+            self.MSG = self._encode_token(" MSG")
+            self.FILE = self._encode_token(" FILE")
+            self.LF = self._encode_token("\n")
+            assert self.LF == 198
+            self.LFLF = self._encode_token("\n\n")
+            LEAVE_LESS_TPOS = 256
+            self._pos_tokens = self._pos_tokens[:LEAVE_LESS_TPOS]
+            # for i in range(self._tik.n_vocab):
+            #     print("%05i \"%s\"" % (i, self._tik.decode([i]).replace("\n", "\\n")))
+
         elif name in ['fb1', 'fb3']:
             import tokenizers
             filename = Path(__file__).resolve().parent / f"{name}.json"

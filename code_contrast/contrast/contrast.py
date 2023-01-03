@@ -213,8 +213,6 @@ class ContrastDiff:
                 opblocks.append(opblock)
             self.orig_tokens[fn] = orig_all_tokens
             self.dest_tokens[fn] = dest_all_tokens
-            assert 628 not in self.orig_tokens[fn]
-            assert 44320 not in self.orig_tokens[fn]
         random.shuffle(opblocks)
         raw_ops: List[Tuple[str, str, int, int, int, int]] = list()
         for opblock in opblocks:
@@ -876,7 +874,7 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, 
     edit_classes = test1.edit_class_vector()
     if verbose:
         print(editclass_print(enc, test1.r, test1.m, edit_classes))
-        print("tokens %i, n_ctx=%i", (len(test1.r), n_ctx))
+        print("tokens %i, n_ctx=%i" % (len(test1.r), n_ctx))
     test2 = ContrastDiff(enc)
     test_odm_nodest = copy.deepcopy(odm)
     del test_odm_nodest["dest"]
