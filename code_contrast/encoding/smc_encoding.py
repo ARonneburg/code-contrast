@@ -25,6 +25,8 @@ class SMCEncoding:
         self.EOT = 0
         self._pos_tokens = []
         self._tokenizer = None
+        self._allowed_special = set()
+        self._slash_n_banlist = set()
 
         if name in ["openai_reversible50000"]:
             self.EOT = 50256
@@ -50,21 +52,23 @@ class SMCEncoding:
                 tt_name = "az://openaipublic/encodings/cl100k_base.tiktoken"
                 pat_str = r"""(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+"""
                 special_tokens = {
+                    "<|unknown0|>": 100256,
                     "<|endoftext|>": 100257,
                     "<|fim_prefix|>": 100258,
                     "<|fim_middle|>": 100259,
                     "<|fim_suffix|>": 100260,
-                    "<|endofprompt|>": 100276,
-                    "►": 100277,
-                    "●": 100278,
-                    "§": 100279,
+                    # "<|endofprompt|>": 100276,
+                    "►": 100261,  #100277,
+                    "●": 100262,  #100278,
+                    "§": 100263,  #100279,
                 }
                 self.EOT = 100257
                 self.INFILL = 100259
-                self.CHUNK = 100277
-                self.DIAMOND = 100278
-                self.ESCAPE = 100279
-                last_special_plus_one = 100280
+                self.CHUNK = 100261
+                self.DIAMOND = 100262
+                self.ESCAPE = 100263
+                self._allowed_special = set(["<|fim_middle|>"])
+                last_special_plus_one = 100264
             elif name == "openai_programming_v2":
                 pat_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
                 tt_name = "az://openaipublic/encodings/p50k_base.tiktoken"
@@ -103,7 +107,7 @@ class SMCEncoding:
             )
             self.n_vocab = self._tik.n_vocab
             if name == "openai_cl100k":
-                assert self.n_vocab == 101304
+                assert self.n_vocab == 101288
             elif name == "openai_programming_v2":
                 assert self.n_vocab == 51305
             else:
@@ -115,8 +119,12 @@ class SMCEncoding:
             self.LFLF = self._encode_token("\n\n")
             LEAVE_LESS_TPOS = 256
             self._pos_tokens = self._pos_tokens[:LEAVE_LESS_TPOS]
-            # for i in range(self._tik.n_vocab):
-            #     print("%05i \"%s\"" % (i, self._tik.decode([i]).replace("\n", "\\n")))
+            for i in range(self._tik.n_vocab):
+                if i==198:  # Only allow one token with \n
+                    continue
+                if "\n" in self._tik.decode([i]):
+                    self._slash_n_banlist.add(i)
+                    # print("%05i \"%s\"" % (i, self._tik.decode([i]).replace("\n", "\\n").replace("\r", "\\r")))
 
         elif name in ['fb1', 'fb3']:
             import tokenizers
@@ -167,11 +175,11 @@ class SMCEncoding:
             while 1:
                 slash_n = txt.find("\n", cursor)
                 if slash_n == -1:
-                    more = self._tik.encode_ordinary(txt[cursor:])
+                    more = self._tik.encode(txt[cursor:], allowed_special=self._allowed_special, disallowed_special=())
                     result.extend(more)
                     break
                 else:
-                    more = self._tik.encode_ordinary(txt[cursor:slash_n])
+                    more = self._tik.encode(txt[cursor:slash_n], allowed_special=self._allowed_special, disallowed_special=())
                     result.extend(more)
                     result.append(self.LF)
                 cursor = slash_n + 1

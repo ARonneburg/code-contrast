@@ -7,7 +7,7 @@ def test_long_text(enc):
     long_text = open(code_contrast.encoding.smc_encoding.__file__).read()
     toks = enc.encode(long_text)
     print("\nbig text", len(toks))
-    print("lflf in toks", enc.LFLF in toks)
+    assert enc.LFLF not in toks
     # for i, tok in enumerate(toks):
     #     print("%03i %i \"%s\"" % (i, tok, enc.decode([tok]).replace("\n", "\\n")))
     assert long_text == enc.decode(toks)
@@ -44,7 +44,8 @@ def test_rev50000_derivatives(enc_name):
     assert msg2 == msg + "<|endoftext|>"
 
     test_long_text(enc)
-    test_position_tokens(enc)
+    if enc_name == "openai_programming_v2":
+        test_position_tokens(enc)
 
 
 def test_cl100k(enc_name):
@@ -62,6 +63,6 @@ def test_cl100k(enc_name):
 
 
 if __name__ == "__main__":
-    # test_rev50000_derivatives("openai_reversible50000")
+    test_rev50000_derivatives("openai_reversible50000")
     test_rev50000_derivatives("openai_programming_v2")
     test_cl100k("openai_cl100k")
