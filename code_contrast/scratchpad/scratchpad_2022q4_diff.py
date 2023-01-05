@@ -179,7 +179,7 @@ class ScratchpadDiff(ScratchpadBase):
                 if slash_n_idx >= 0:
                     cut_slash_n = cut_slash_n[slash_n_idx+1:]
                 self.odm["orig"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.INFILL]) + cut_slash_n
-                self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DIAMOND]) + cut_slash_n
+                self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DUMMY]) + cut_slash_n
             else:
                 self.odm["orig"][fn] = text
                 self.odm["dest"][fn] = text
@@ -194,7 +194,7 @@ class ScratchpadDiff(ScratchpadBase):
         assert len(self.diff.edits) == 1
         while len(self.diff.r) > 0:
             t = self.diff.r.pop()
-            if t == self.enc.DIAMOND:
+            if t == self.enc.DUMMY:
                 break
         del3more = 3
         while len(self.diff.r) > 0 and self.diff.r[-1] not in [self.enc.LF] and del3more > 0:
@@ -242,7 +242,7 @@ class ScratchpadDiff(ScratchpadBase):
             self.odm["orig"][fn] = text
             if self.cursor_file == fn:
                 # make sure cursor01 is visible
-                self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DIAMOND]) + text[self.cursor1:]
+                self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DUMMY]) + text[self.cursor1:]
             else:
                 self.odm["dest"][fn] = text
         self.orig_tokens = self.diff.from_odm_dict(
@@ -270,7 +270,7 @@ class ScratchpadDiff(ScratchpadBase):
             assert len(self.diff.edits) == 1
             while len(self.diff.r) > 0:
                 t = self.diff.r.pop()
-                if t == self.enc.DIAMOND:
+                if t == self.enc.DUMMY:
                     break
             while len(self.diff.r) > 0 and self.diff.r[-1] not in [self.enc.LF]:
                 self.diff.r.pop()

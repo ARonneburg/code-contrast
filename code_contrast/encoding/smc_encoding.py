@@ -23,6 +23,7 @@ class SMCEncoding:
         self.LF = 0
         self.LFLF = 0
         self.EOT = 0
+        self.DUMMY = 0
         self._pos_tokens = []
         self._tokenizer = None
         self._allowed_special = set()
@@ -64,10 +65,11 @@ class SMCEncoding:
                 }
                 self.EOT = 100257
                 self.INFILL = 100259
+                self.DUMMY = 100260
                 self.CHUNK = 100261
                 self.DIAMOND = 100262
                 self.ESCAPE = 100263
-                self._allowed_special = set(["<|fim_middle|>"])
+                self._allowed_special = set(["<|fim_middle|>", "<|fim_suffix|>"])
                 last_special_plus_one = 100264
             elif name == "openai_programming_v2":
                 pat_str = r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -83,6 +85,7 @@ class SMCEncoding:
                 self.INFILL = 25992   # " 裏覚醒"
                 self.DIAMOND = 48049  # " ●"
                 self.CHUNK = 34933    # " ►"
+                self.DUMMY = self.DIAMOND    # something that can be converted to text and back to token
                 last_special_plus_one = 50281
             else:
                 assert 0
