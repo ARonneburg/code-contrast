@@ -182,6 +182,7 @@ class ScratchpadDiff(ScratchpadBase):
                 self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DIAMOND]) + cut_slash_n
             else:
                 self.odm["orig"][fn] = text
+                self.odm["dest"][fn] = text
         self.orig_tokens = self.diff.from_odm_dict(
             self.odm,
             n_ctx=(T - self.max_tokens),
