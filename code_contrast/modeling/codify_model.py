@@ -10,28 +10,35 @@ from code_contrast.modeling.generation import generate
 
 
 class CodifyModel(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, device: str):
         super().__init__()
+        self.device = device
         self.config = config
         self.embed_dim = config.E
         n_vocab_align64 = (config.n_vocab + 63) // 64 * 64
-        self.wte = nn.Embedding(n_vocab_align64, self.embed_dim)
-        self.layers = nn.ModuleList([Block(config) for _ in range(config.L)])
+        self.wte = self.to_device(nn.Embedding(n_vocab_align64, self.embed_dim))
+        self.layers = nn.ModuleList([self.to_device(Block(config)) for _ in range(config.L)])
 
         # lm model
-        self.ln_f = nn.LayerNorm(self.embed_dim)
-        self.lm_head = nn.Linear(config.E, n_vocab_align64, bias=False)
+        self.ln_f = self.to_device(nn.LayerNorm(self.embed_dim))
+        self.lm_head = self.to_device(nn.Linear(config.E, n_vocab_align64, bias=False))
 
         # highlight model
-        self.bidir_sa_ln = nn.LayerNorm(config.E)
-        self.bidir_sa = MultiheadSelfAttention(config)
-        self.bidir_2logits_ln = nn.LayerNorm(config.E)
-        self.bidir_2logits = nn.Linear(config.E, 3)
+        self.bidir_sa_ln = self.to_device(nn.LayerNorm(config.E))
+        self.bidir_sa = self.to_device(MultiheadSelfAttention(config))
+        self.bidir_2logits_ln = self.to_device(nn.LayerNorm(config.E))
+        self.bidir_2logits = self.to_device(nn.Linear(config.E, 3))
+
+    def to_device(self, module: nn.Module):
+        module = module.to(self.device)
+        if self.device.startswith("cuda"):
+            module = module.to(torch.half)
+        return module
 
     @classmethod
-    def from_pretrained(cls, path: str, repo_id: Optional[str] = None):
+    def from_pretrained(cls, path: str, device: str = "cuda", repo_id: Optional[str] = None):
         config = load_config(path, repo_id)
-        model = cls(config)
+        model = cls(config, device)
         model = load_checkpoint(model, path, repo_id)
         return model
 

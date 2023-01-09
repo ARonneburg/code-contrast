@@ -43,7 +43,7 @@ class Inference:
         self._device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
 
         self._model_lock = Lock()
-        self._model = None
+        self._model: Optional[CodifyModel] = None
         self._encoding = None
         self._model_name = None
 
@@ -79,17 +79,17 @@ class Inference:
         if len(p) == 0:
             raise RuntimeError("empty tokens prompt")
 
-        tokens_prompt = torch.tensor(p, device=self._device)
+        tokens_prompt = torch.tensor(p, device=self._model.device)
         return scratchpad, tokens_prompt
 
     def _make_mask(self, seq_len: int, past_key_values_length: int):
         if past_key_values_length == 0:
             mask = torch.ones((seq_len, seq_len + past_key_values_length),
-                              dtype=torch.bool, device=self._device)
+                              dtype=torch.bool, device=self._model.device)
             mask = torch.triu(mask, 1)
         else:
             mask = torch.zeros((seq_len, seq_len + past_key_values_length),
-                               dtype=torch.bool, device=self._device)
+                               dtype=torch.bool, device=self._model.device)
         return mask
 
     def _before_token_selection(
@@ -142,9 +142,10 @@ class Inference:
                              max_length: int) -> torch.Tensor:
         past_key_values = None
         sequence = sequence.unsqueeze(0)
-        output_tokens = torch.empty((1, 1), dtype=torch.int64, device=self._device)
-        chosen_tokens = torch.empty((1, 1), dtype=torch.int64, device='cpu')
-        temperatures = torch.tensor([scratchpad.temp], dtype=torch.float32, device=self._device).view(-1, 1, 1) + 1e-3
+        output_tokens = torch.empty((1, 1), dtype=torch.int64, device=self._model.device)
+        chosen_tokens = torch.empty((1, 1), dtype=torch.int64, device="cpu")
+        temperatures = torch.tensor([scratchpad.temp], dtype=torch.float32,
+                                    device=self._model.device).view(-1, 1, 1) + 1e-3
 
         for token_idx in range(max_length):
             if token_idx == 0:
@@ -232,10 +233,7 @@ class Inference:
                 try:
                     self._model_name = None
                     self._model = CodifyModel.from_pretrained(
-                        str(workdir / "weights"), repo_id=model_path)
-                    self._model.to(self._device)
-                    if self._device.startswith("cuda"):
-                        self._model = self._model.to(torch.half)
+                        str(workdir / "weights"), device=self._device, repo_id=model_path)
                     self._model = self._model.eval()
                     self._encoding = self._model.config.encoding
                     self._model_name = model_name
