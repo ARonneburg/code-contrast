@@ -6,16 +6,18 @@ import requests
 import time
 import traceback
 
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Thread
 from threading import Lock
 
+from code_contrast import ScratchpadBase
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
 from code_contrast import CodifyModel
 
-from typing import Optional, Union, Dict, Any, Iterable, Tuple
+from typing import Optional, Dict, Any, Iterable, Tuple, List
 
 
 __all__ = ["Inference", "LockedError"]
@@ -90,35 +92,102 @@ class Inference:
                                dtype=torch.bool, device=self._device)
         return mask
 
+    def _before_token_selection(
+            self,
+            logits: torch.Tensor,
+            hidden_state: torch.Tensor,
+            scratchpad: ScratchpadBase,
+    ) -> Dict[str, Any]:
+        output = defaultdict(list)
+        for k, v in scratchpad.before_token_selection(
+                self._model, b=0, logit=logits[0], heads=dict(x_bte=hidden_state)).items():
+            output[k].append(v)
+        return output
+
+    def _select_tokens(
+            self,
+            logits: torch.Tensor,
+            tokens: torch.Tensor,
+            chosen_tokens: torch.Tensor,
+            scratchpad: ScratchpadBase,
+            temperatures: torch.Tensor,
+            logits_intrusion: Optional[List[Dict[int, float]]] = None,
+            **unused,
+    ) -> Dict[str, Any]:
+        output = defaultdict(list)
+        for k, v in scratchpad.select_tokens(
+                logits=logits, tokens=tokens, chosen_tokens=chosen_tokens,
+                temperatures=temperatures, logits_intrusion=logits_intrusion).items():
+            output[k].append(v)
+        return output
+
+    def _after_token_selection(
+            self,
+            logits: torch.Tensor,
+            hidden_state: torch.Tensor,
+            chosen_tokens: torch.Tensor,
+            scratchpad: ScratchpadBase,
+            **unused
+    ):
+        scratchpad.after_token_selection(
+            self._model,
+            logits=logits,
+            heads=dict(x_bte=hidden_state),
+            chosen_token=chosen_tokens[0]
+        )
+
     def _generate_scratchpad(self,
-                             input_ids: torch.Tensor,
-                             scratchpad: Union[ScratchpadCompletion, ScratchpadDiff],
-                             max_length: int,
-                             use_cache: bool = True) -> torch.Tensor:
+                             sequence: torch.Tensor,
+                             scratchpad: ScratchpadBase,
+                             max_length: int) -> torch.Tensor:
         past_key_values = None
-        input_ids = input_ids.unsqueeze(0)
-        next_tokens = input_ids
+        sequence = sequence.unsqueeze(0)
+        output_tokens = torch.empty((1, 1), dtype=torch.int64, device=self._device)
+        chosen_tokens = torch.empty((1, 1), dtype=torch.int64, device='cpu')
+        temperatures = torch.tensor([scratchpad.temp], dtype=torch.float32, device=self._device).view(-1, 1, 1) + 1e-3
+
         for token_idx in range(max_length):
-            batch_size, seq_len = next_tokens.shape
-            cache_len = 0
-            if use_cache and past_key_values is not None:
-                cache_len = past_key_values[0][0].shape[2]
+            if token_idx == 0:
+                seq_len, cache_len = sequence.shape[1], 0
+                input_tokens = sequence
+            else:
+                assert past_key_values is not None
+                seq_len, cache_len = 1, past_key_values[0][0].shape[2]
+                input_tokens = output_tokens
             attention_mask = self._make_mask(seq_len, cache_len)
 
             hidden_state, past_key_values = self._model(
-                next_tokens,
+                input_tokens,
                 attention_mask=attention_mask,
                 past_key_values=past_key_values,
-                use_cache=use_cache)
+                use_cache=True)
             logits = self._model.lm_forward(hidden_state)
+            logits = logits[:, [-1], :self._encoding.n_vocab]
 
-            next_tokens = scratchpad.new_token(
-                self._model, 0, logits[:, -1, :self._encoding.n_vocab], dict(x_bte=hidden_state)).unsqueeze(0)
-            input_ids = torch.cat([input_ids, next_tokens], dim=-1)
-            if not use_cache:
-                next_tokens = input_ids
+            before_kwargs = self._before_token_selection(
+                logits=logits, hidden_state=hidden_state, scratchpad=scratchpad)
 
-            yield input_ids[0]
+            select_kwargs = self._select_tokens(
+                logits=logits,
+                tokens=output_tokens,
+                chosen_tokens=chosen_tokens,
+                scratchpad=scratchpad,
+                temperatures=temperatures,
+                **before_kwargs
+            )
+
+            sequence = torch.cat([sequence, output_tokens], dim=-1)
+
+            self._after_token_selection(
+                logits=logits,
+                hidden_state=hidden_state,
+                chosen_tokens=chosen_tokens,
+                scratchpad=scratchpad,
+                **before_kwargs,
+                **select_kwargs,
+            )
+
+            yield sequence[0]
 
             if scratchpad.finish_reason:
                 break
