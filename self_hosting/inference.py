@@ -170,11 +170,12 @@ class Inference:
                     self._model = self._model.eval()
                     self._encoding = self._model.config.encoding
                     self._model_name = model_name
+                    logging.info(f"model {model_name} loaded sucessfully")
                 except Exception as e:
                     self._model = None
                     self._encoding = None
                     self._model_name = None
-                    logging.error("model loading failed:")
+                    logging.error(f"model {model_name} loading failed:")
                     logging.error(e)
             time.sleep(fetch_timeout)
 
@@ -188,7 +189,7 @@ class Inference:
                 {
                     "index": 0,
                     "text": "",
-                    "files": scratchpad.completion(True),
+                    "files": scratchpad.completion(final=bool(status == "completed")),
                     "logprobs": None,
                     "finish_reason": scratchpad.finish_reason
                 },

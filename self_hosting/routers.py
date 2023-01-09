@@ -60,13 +60,13 @@ class ActivateRouter(APIRouter):
                         authorization: str = Header(None)):
         token = parse_authorization_header(authorization)
         if self._token != token:
-            raise HTTPException(status_code=401, detail="This server cannot work with your API key")
+            raise HTTPException(status_code=401,
+                                detail="Server doesn't match with your API key")
         response = {
             "retcode": "OK",
             "human_readable_message": "API key verified"
         }
         return Response(content=json.dumps(response))
-
 
 
 class CompletionRouter(APIRouter):
@@ -78,14 +78,15 @@ class CompletionRouter(APIRouter):
         self._token = token
         self._inference = inference
         super(CompletionRouter, self).__init__(*args, **kwargs)
-        super(CompletionRouter, self).add_api_route("/v1/completion", self._completion, methods=["POST"])
+        super(CompletionRouter, self).add_api_route("/v1/completions", self._completion, methods=["POST"])
 
     async def _completion(self,
                           post: TextSamplingParams,
                           authorization: str = Header(None)):
         token = parse_authorization_header(authorization)
         if self._token != token:
-            raise HTTPException(status_code=401, detail="This server cannot work with your API key")
+            raise HTTPException(status_code=401,
+                                detail="Server doesn't match with your API key")
         request = post.clamp()
         request.update({
             "id": str(uuid4()),
@@ -96,9 +97,12 @@ class CompletionRouter(APIRouter):
             "stream": post.stream,
         })
         if self._inference.model_name is None:
-            raise HTTPException(status_code=401, detail="Server is not ready")
-        if self._inference.model_name != post.model:
-            raise HTTPException(status_code=401, detail="Server have different model")
+            raise HTTPException(status_code=401,
+                                detail="Server is not ready")
+        if post.model != "CONTRASTcode" and self._inference.model_name != post.model:
+            raise HTTPException(status_code=401,
+                                detail=f"Requested model '{post.model}' doesn't match "
+                                       f"server model '{self._inference.model_name}'")
         return StreamingResponse(inference_streamer(request, self._inference))
 
 
@@ -118,17 +122,20 @@ class ContrastRouter(APIRouter):
                         authorization: str = Header(None)):
         token = parse_authorization_header(authorization)
         if self._token != token:
-            raise HTTPException(status_code=401, detail="This server cannot work with your API key")
+            raise HTTPException(status_code=401,
+                                detail="Server doesn't match with your API key")
         if post.function != "diff-anywhere":
             if post.cursor_file not in post.sources:
-                raise HTTPException(status_code=400, detail="cursor_file='%s' is not in sources=%s" % (
+                raise HTTPException(status_code=400,
+                                    detail="cursor_file='%s' is not in sources=%s" % (
                 post.cursor_file, list(post.sources.keys())))
             if post.cursor0 < 0 or post.cursor1 < 0:
                 raise HTTPException(status_code=400,
                                     detail="cursor0=%d or cursor1=%d is negative" % (post.cursor0, post.cursor1))
             filetext = post.sources[post.cursor_file]
             if post.cursor0 > len(filetext) or post.cursor1 > len(filetext):
-                raise HTTPException(status_code=400, detail="cursor0=%d or cursor1=%d is beyond file length=%d" % (
+                raise HTTPException(status_code=400,
+                                    detail="cursor0=%d or cursor1=%d is beyond file length=%d" % (
                 post.cursor0, post.cursor1, len(filetext)))
         else:
             post.cursor0 = -1
@@ -152,7 +159,10 @@ class ContrastRouter(APIRouter):
             "stream": post.stream,
         })
         if self._inference.model_name is None:
-            raise HTTPException(status_code=401, detail="Server is not ready")
-        if self._inference.model_name != post.model:
-            raise HTTPException(status_code=401, detail="Server have different model")
+            raise HTTPException(status_code=401,
+                                detail="Server is not ready")
+        if post.model != "CONTRASTcode" and self._inference.model_name != post.model:
+            raise HTTPException(status_code=401,
+                                detail=f"Requested model '{post.model}' doesn't match "
+                                       f"server model '{self._inference.model_name}'")
         return StreamingResponse(inference_streamer(request, self._inference))
