@@ -59,7 +59,7 @@ class Watchdog:
                 stdout=sys.stdout,
                 stderr=sys.stderr,
             )
-            logging.info(f"server started pid={process.pid}")
+            logging.info(f"server started")
             return process
         except ValueError as e:
             logging.error(e)
@@ -78,14 +78,13 @@ class Watchdog:
             while True:
                 if self._quit_flag:
                     process.kill()
-                    logging.info(f"server is shutting down pid={process.pid}")
+                    logging.info(f"server is shutting down")
                     process.wait()
                     break
                 retcode = process.poll()
                 if retcode is not None:
-                    logging.info(f"server exited with {retcode} pid={process.pid}")
+                    logging.info(f"server exited with {retcode}")
                     break
-                logging.info(f"server is working pid={process.pid}")
                 time.sleep(10)
 
 
