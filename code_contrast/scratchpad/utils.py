@@ -4,8 +4,9 @@ import torch as th
 def temperature_top_k_top_p_filtering(logits, temperature=1, top_k=0, top_p=0, filter_value=-float('Inf')):
     assert logits.dim() == 1
 
-    temperature = 1 if temperature >= 1 or temperature <= 0.01 else temperature
-    logits = logits / temperature
+    temperature = min(temperature, 1.0)
+    temperature = max(temperature, 0.0)
+    logits = logits / (temperature + 0.01)
     top_k = min(top_k, logits.size(-1))
 
     if top_k > 0:

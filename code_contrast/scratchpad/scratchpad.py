@@ -90,9 +90,11 @@ class ScratchpadBase:
                     top_p=top_ps[b], top_k=top_ks[b]
                 )
             probs = logits.softmax(dim=-1)
+            a = th.multinomial(probs, num_samples=1)
         else:
-            probs = (logits / temperatures).squeeze(1).softmax(dim=-1)
-        tokens.copy_(th.multinomial(probs, num_samples=1), non_blocking=True)
+            probs = (logits / (temperatures + 0.01)).squeeze(1).softmax(dim=-1)
+            a = th.multinomial(probs, num_samples=1)
+        tokens.copy_(a, non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
         result = dict()
@@ -111,9 +113,6 @@ class ScratchpadBase:
 
     def completion(self, final: bool):
         raise NotImplementedError()
-
-    def finalize(self):
-        pass
 
     def set_model_thresholds(self, **args):
         if len(args) > 0:

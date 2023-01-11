@@ -121,7 +121,7 @@ class ScratchpadDiff(ScratchpadBase):
     def completion(self, final: bool):
         if final and self.diff_out_us is not None:
             self.diff_out_catch_up()
-            self.finalize()
+            self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
             dest_tokens = self.diff_out.apply_edits_return_dest(self.diff_out_us)
             result = {}
             for fn in dest_tokens:
@@ -133,10 +133,6 @@ class ScratchpadDiff(ScratchpadBase):
             return None
         else:
             return None
-
-    def finalize(self):
-        if self.diff_out_us is not None:
-            self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
 
     def diff_out_catch_up(self):
         if self.diff_out_us is None:
