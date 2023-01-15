@@ -148,7 +148,6 @@ class ContrastDiff:
                     contlines.extend(list(range(i1+1, i2)))
             fndiff = ops_stochastic_expand(fndiff,
                 left_prob=1, right_prob=1,
-                upto1=0, upto2=2,
                 exact_cx_lines0=exact_cx_lines0, exact_cx_lines1=exact_cx_lines1,
                 disable_insert=True)
             fndiff = ops_remove_short_equals(fndiff, upto=2)

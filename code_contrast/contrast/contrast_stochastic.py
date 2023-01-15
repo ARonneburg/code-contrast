@@ -2,6 +2,7 @@ import copy
 import random
 import difflib
 import termcolor
+import numpy as np
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 
@@ -67,9 +68,7 @@ def ops_remove_short_equals(ops, upto):
     return result
 
 
-def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_insert, exact_cx_lines0=-1, exact_cx_lines1=-1):
-    if upto2 == 0:
-        return ops
+def ops_stochastic_expand(ops, *, left_prob, right_prob, disable_insert, exact_cx_lines0=-1, exact_cx_lines1=-1):
     result = copy.deepcopy(ops)
     countdown = 10
     while 1:
@@ -82,7 +81,7 @@ def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_i
                 if exact_cx_lines0 >= 0:
                     move = exact_cx_lines0
                 else:
-                    move = random.randint(upto1, upto2)   # inclusive
+                    move = np.random.poisson(lam=2)
                 if move < li2 - li1 and move > 0:
                     result[n-1] = (lop, li1, li2 - move, lj1, lj2 - move)
                     result[n] = (mop, mi1 - move, mi2, mj1 - move, mj2)
@@ -96,7 +95,10 @@ def ops_stochastic_expand(ops, *, left_prob, right_prob, upto1, upto2, disable_i
                 if exact_cx_lines1 >= 0:
                     move = exact_cx_lines1
                 else:
-                    move = random.randint(max(1, upto1) if (mi1==mi2 and disable_insert) else upto1, upto2)
+                    # if disable_insert, add at least one line => insert becomes replace
+                    move = np.random.poisson(lam=2)
+                    if disable_insert:
+                        move = max(1, move)
                 if move < ri2 - ri1 and move > 0:
                     result[n] = (mop, mi1, mi2 + move, mj1, mj2 + move)
                     result[n+1] = (rop, ri1 + move, ri2, rj1 + move, rj2)
