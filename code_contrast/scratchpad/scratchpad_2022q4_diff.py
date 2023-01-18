@@ -89,7 +89,7 @@ class ScratchpadDiff(ScratchpadBase):
             scratch = self.diff_out_us.scratch[e.fn]
             if self.tpos_cursor1 != -1:
                 tokens2 = self.cursorfile_tokens2
-                assert all(tokens2[i] == scratch[i] for i in range(len(tokens2)))
+                assert all(tokens2[i] == scratch[i] for i in range(len(scratch)))
                 # print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_delstart:e.real_delends]), "yellow"))
                 # print("suggest: [%s]" % termcolor.colored(self.enc.decode(scratch[e.real_delends:e.real_delends + 8]), "blue"))
                 suggest_tokens = scratch[e.real_delends:e.real_delends + 8]
@@ -113,26 +113,29 @@ class ScratchpadDiff(ScratchpadBase):
         self.diff.r.append(chosen_token.item())
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
+        if self.stream:
+            self.needs_upload = True
         return dict()
 
     def toplevel_fields(self):
         return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
 
     def completion(self, final: bool):
-        if final and self.diff_out_us is not None:
-            self.diff_out_catch_up()
-            self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
-            dest_tokens = self.diff_out.apply_edits_return_dest(self.diff_out_us)
-            result = {}
-            for fn in dest_tokens:
-                result[fn] = self.enc.decode(self.diff_out.dest_tokens[fn])
-            self.debuglog("ScratchpadDiff: finalized", self.diff_out_us.stats, self.finish_reason)
-            return result
-        elif final:
-            self.debuglog("ScratchpadDiff: nothing useful available")
-            return None
+        if final:
+            if self.diff_out_us is not None:
+                self.diff_out_catch_up()
+                self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
+            else:
+                self.debuglog("ScratchpadDiff: nothing useful available")
+                return None
         else:
-            return None
+            self.diff_out_catch_up()
+        dest_tokens = self.diff_out.apply_edits_return_dest(self.diff_out_us)
+        result = {}
+        for fn in dest_tokens:
+            result[fn] = self.enc.decode(self.diff_out.dest_tokens[fn])
+        self.debuglog("ScratchpadDiff: final=%i" % final, self.diff_out_us.stats, self.finish_reason)
+        return result
 
     def diff_out_catch_up(self):
         if self.diff_out_us is None:

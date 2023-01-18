@@ -729,12 +729,18 @@ class ContrastDiff:
                 e.real_delends = e.real_delstart + len(e.todel)
         return -1
 
-    def edit_apply(self, us: UntokenizeState, ie: int, e: Edit):
-        assert e.fn in us.scratch
-        scratch = us.scratch[e.fn]
-        orig2scratch = us.orig2scratch[e.fn]
+    def edit_apply(self,
+        us: UntokenizeState,
+        ie: int,
+        e: Edit,
+        scratch: Dict[str, List[int]],
+        orig2scratch: Dict[str, List[int]],
+        edits_plus_brewing: List[Edit],
+    ):
+        assert e.fn in scratch
+        scratch_fn = scratch[e.fn]
         assert e.real_delstart != -1
-        for future_edit in self.edits[ie+1:]:
+        for future_edit in edits_plus_brewing[ie+1:]:
             if future_edit.real_delstart == -1:
                 continue
             if future_edit.fn != e.fn:
@@ -745,19 +751,25 @@ class ContrastDiff:
                 shift = -(e.real_delends - e.real_delstart) + len(e.toins)
                 future_edit.real_delstart += shift
                 future_edit.real_delends += shift
-        good, _ = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
+        good, _ = self._lookahead_ignoring_tpos(scratch_fn, e.real_delstart, e.todel)
         if not good:
             e.error = "cannot confirm todel tokens"
             return
-        scratch[e.real_delstart:e.real_delends] = e.toins
-        orig2scratch[e.real_delstart:e.real_delends] = [-1] * len(e.toins)
+        scratch_fn[e.real_delstart:e.real_delends] = e.toins
+        orig2scratch[e.fn][e.real_delstart:e.real_delends] = [-1] * len(e.toins)
         us.stats["chunks_applied"] += 1
 
     def apply_edits_return_dest(self, us: UntokenizeState):
         fn_unchanged = set(fn for fn in us.scratch)
         fn_changed = set()
+        scratch = copy.deepcopy(us.scratch)
+        orig2scratch = copy.deepcopy(us.orig2scratch)
         self.errors.clear()
-        for ie, e in enumerate(self.edits):
+        if us.brewing_edit.real_delstart != -1:
+            edits_plus_brewing = copy.deepcopy(self.edits) + [copy.deepcopy(us.brewing_edit)]
+        else:
+            edits_plus_brewing = copy.deepcopy(self.edits)
+        for ie, e in enumerate(edits_plus_brewing):
             # print("\napply %i" % ie)
             if e.shift == -1:
                 # unfinished chunk, nothing we can do
@@ -769,16 +781,16 @@ class ContrastDiff:
             us.stats["fuzzy"] += e.fuzzy
             if e.fuzzy:
                 print("chunk%i fuzzy" % ie, e.fuzzy)
-            self.edit_apply(us, ie, e)
+            self.edit_apply(us, ie, e, scratch, orig2scratch, edits_plus_brewing)
             if e.error:
                 self.errors.append(e.error)
                 continue
             fn_changed.add(e.fn)
         fn_unchanged -= fn_changed
-        for fn, scratch in us.scratch.items():
-            while len(scratch) and (scratch[-1] in [self.enc.ESCAPE, self.enc.DIAMOND] or self.enc.is_tpos(scratch[-1])):
-                scratch.pop(-1)
-            self.dest_tokens[fn] = [int(t) for t in scratch if not self.enc.is_tpos(t)]
+        for fn, fn_scratch in scratch.items():
+            while len(fn_scratch) and (fn_scratch[-1] in [self.enc.ESCAPE, self.enc.DIAMOND] or self.enc.is_tpos(fn_scratch[-1])):
+                fn_scratch.pop(-1)
+            self.dest_tokens[fn] = [int(t) for t in fn_scratch if not self.enc.is_tpos(t)]
         us.stats["errors"] = len(self.errors)
         us.stats["files_unchanged"] = len(fn_unchanged)
         us.stats["files_patched"] = len(fn_changed)

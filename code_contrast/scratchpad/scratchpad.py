@@ -24,6 +24,7 @@ class ScratchpadBase:
         max_tokens: int,
         stop_tokens: Union[str, List[str]],
         logger: Callable,
+        stream: bool = False,
         **unused,
     ):
         self.enc = enc
@@ -41,6 +42,7 @@ class ScratchpadBase:
         self.stop_tokens: Set[int] = set()
         self.stop_lf_lf = False
         self.stop_lf_lf_lf = False
+        self.stream = stream
         for s in stop_strings:
             if s == "\n\n":
                 self.stop_lf_lf = True
