@@ -115,8 +115,6 @@ class ScratchpadDiff(ScratchpadBase):
         self.diff.r.append(chosen_token.item())
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
-        if self.stream and self.generated_tokens_n % 10 == 0:
-            self.needs_upload = True
         return dict()
 
     def toplevel_fields(self):
@@ -163,6 +161,9 @@ class ScratchpadDiff(ScratchpadBase):
                     if self.stop_lf_lf and (self.diff.r[self.diff_out_cursor - 1], t) == (self.enc.LF, self.enc.LF):
                         finish("ins-stop-lflf")
                         break
+                    if t == self.enc.LF:
+                        if self.stream:
+                            self.needs_upload = True
                 if self.diff_out_us.state in [contrast.DEL, contrast.SHIFT]:
                     # print("TEST epos=%i in %s\n\n" % (self.diff_out_us.e_tpos, self.increase_logits))
                     if len(self.increase_logits) > 0 and (self.diff_out_us.brewing_edit.tpos not in self.increase_logits):
