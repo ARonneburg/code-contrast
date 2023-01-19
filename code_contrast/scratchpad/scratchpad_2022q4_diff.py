@@ -51,6 +51,7 @@ class ScratchpadDiff(ScratchpadBase):
         self.increase_logits = []
         self.no_stop_tokens_until = -1
         self.selected_newlines = -1
+        self.selection_is_important = (self.function in ["diff-atcursor", "diff-selection"])
         self.P1 = 0.35
         self.P2 = 0.20
         self.JP1 = 0.20
@@ -93,11 +94,12 @@ class ScratchpadDiff(ScratchpadBase):
                 # print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_delstart:e.real_delends]), "yellow"))
                 # print("suggest: [%s]" % termcolor.colored(self.enc.decode(scratch[e.real_delends:e.real_delends + 8]), "blue"))
                 suggest_tokens = scratch[e.real_delends:e.real_delends + 8]
-                beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
-                if beyond_selection >= -1:
-                    extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends] if t == self.enc.LF])
-                    if extra_newlines >= 0:
-                        logits_intrusion[self.enc.ESCAPE] = 5.0 + 0.5 * extra_newlines
+                if self.selection_is_important:
+                    beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
+                    if beyond_selection >= -1:
+                        extra_newlines = len([t for t in scratch[self.t_cursor1:self.diff_out_us.brewing_edit.real_delends] if t == self.enc.LF])
+                        if extra_newlines >= 0:
+                            logits_intrusion[self.enc.ESCAPE] = 5.0 + 0.5 * extra_newlines
                 # edit works like this: scratch[e.real_delstart:e.real_delends] = e.toins
         return dict(
             logits_intrusion=logits_intrusion,
@@ -113,7 +115,7 @@ class ScratchpadDiff(ScratchpadBase):
         self.diff.r.append(chosen_token.item())
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
-        if self.stream:
+        if self.stream and self.generated_tokens_n % 10 == 0:
             self.needs_upload = True
         return dict()
 
@@ -150,6 +152,7 @@ class ScratchpadDiff(ScratchpadBase):
                     finish("eot")
                     break
                 self.diff_out.untokenize_new_token(self.diff_out_us, t, self.diff_out_cursor)
+                self.diff_out_cursor += 1
                 if self.diff_out_us.state == contrast.CHUNK and self.max_edits >= 0 and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits:
                     finish("max-edits")
                     break
@@ -165,7 +168,6 @@ class ScratchpadDiff(ScratchpadBase):
                     if len(self.increase_logits) > 0 and (self.diff_out_us.brewing_edit.tpos not in self.increase_logits):
                         finish("out-of-selection")
                         break
-                self.diff_out_cursor += 1
         except contrast.DecodeError as e:
             self.debuglog("Exception in diff_out.untokenize_new_token: %s" % e)
             self.finish_reason = "diff-application-error"
@@ -259,7 +261,7 @@ class ScratchpadDiff(ScratchpadBase):
         if self.function == "highlight":
             self.diff.write_esc_chunk()
             return
-        if self.selected_newlines in [0, 1]:
+        if self.selected_newlines in [0, 1] and self.selection_is_important:
             # selected single line or atcursor, write most of the chunk immediately
             self.max_edits = 1
             # tpos = self.cursorfile_tokens2[self.tpos_cursor0]
