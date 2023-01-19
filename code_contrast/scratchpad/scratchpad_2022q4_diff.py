@@ -145,20 +145,21 @@ class ScratchpadDiff(ScratchpadBase):
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
         try:
             while self.diff_out_cursor < len(self.diff.r):
-                t = self.diff.r[self.diff_out_cursor]
+                c = self.diff_out_cursor
+                t = self.diff.r[c]
                 if t==self.enc.EOT:
                     finish("eot")
                     break
-                self.diff_out.untokenize_new_token(self.diff_out_us, t, self.diff_out_cursor)
+                self.diff_out.untokenize_new_token(self.diff_out_us, t, c)
                 self.diff_out_cursor += 1
                 if self.diff_out_us.state == contrast.CHUNK and self.max_edits >= 0 and len(self.diff_out.edits) - self.prompt_edits >= self.max_edits:
                     finish("max-edits")
                     break
-                if self.diff_out_cursor >= self.no_stop_tokens_until and self.diff_out_us.state == contrast.INS:
+                if c >= self.no_stop_tokens_until and self.diff_out_us.state == contrast.INS:
                     if t in self.stop_tokens:
                         finish("ins-stoptoken")
                         break
-                    if self.stop_lf_lf and (self.diff.r[self.diff_out_cursor - 1], t) == (self.enc.LF, self.enc.LF):
+                    if self.stop_lf_lf and (self.diff.r[c - 1], t) == (self.enc.LF, self.enc.LF):
                         finish("ins-stop-lflf")
                         break
                     if t == self.enc.LF:
