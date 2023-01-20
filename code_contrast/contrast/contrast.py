@@ -14,7 +14,7 @@ from code_contrast.print_utils import editclass_print
 from collections import defaultdict
 from dataclasses import dataclass
 
-from typing import List, Dict, Tuple, DefaultDict, Any, Set
+from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
 OFFSET_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -46,6 +46,15 @@ class TooBig(ValueError):
 
 
 WAIT, FILENAME, FILENAME_DIAMONDS, CODE, CODE_FINISHING, MSG, CHUNK, DEL, SHIFT, INS = range(10)
+
+
+def parse_fn(fn: str) -> Tuple[str, Optional[int]]:
+    try:
+        suffix = int(fn.split(":")[-1])
+        fn = ":".join(fn.split(":")[:-1])
+    except:
+        suffix = None
+    return fn, suffix
 
 
 class UntokenizeState:
@@ -469,10 +478,8 @@ class ContrastDiff:
             # "file.py:25 "
             if len(us.fn_txt) > 0 and us.fn_txt[0] == " ":
                 us.fn_txt = us.fn_txt[1:]
-            tmp = us.fn_txt.split(":")
-            if len(tmp) == 2:
-                us.fn_txt, _shortened_tokens = tmp
-                shortened_tokens = int(_shortened_tokens)
+            us.fn_txt, shortened_tokens = parse_fn(us.fn_txt)
+            if shortened_tokens is not None:
                 if us.fn_txt in self.full_orig_tokens:
                     self.orig_tokens[us.fn_txt] = self.full_orig_tokens[us.fn_txt]
                     self.fn2cut0[us.fn_txt] = shortened_tokens
