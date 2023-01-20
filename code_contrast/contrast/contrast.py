@@ -1,6 +1,8 @@
 import random
 import copy
 import json
+import re
+
 import termcolor
 
 import difflib
@@ -49,12 +51,9 @@ WAIT, FILENAME, FILENAME_DIAMONDS, CODE, CODE_FINISHING, MSG, CHUNK, DEL, SHIFT,
 
 
 def parse_fn(fn: str) -> Tuple[str, Optional[int]]:
-    try:
-        suffix = int(fn.split(":")[-1])
-        fn = ":".join(fn.split(":")[:-1])
-    except:
-        suffix = None
-    return fn, suffix
+    if re.search(r":([0-9]+)$", fn) is None:
+        return fn, None
+    return ":".join(fn.split(":")[:-1]), int(fn.split(":")[-1])
 
 
 class UntokenizeState:
