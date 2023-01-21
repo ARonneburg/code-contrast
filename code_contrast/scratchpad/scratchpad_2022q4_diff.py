@@ -204,14 +204,13 @@ class ScratchpadDiff(ScratchpadBase):
     def prompt_edit_chain(self, T):
         minrev = 10000
         for fn, text in self.sources.items():
-            if ":" not in fn:
+            fn, revision = contrast.parse_fn(fn)
+            if revision is None:
                 continue
             if self.function != "edit-chain":
                 continue
-            fn, revstr = fn.split(":")
             if self.cursor_file != fn:
                 continue
-            revision = int(revstr)
             if revision < minrev:
                 minrev = revision
             else:
@@ -220,7 +219,8 @@ class ScratchpadDiff(ScratchpadBase):
             # self.debuglog("revision", revision)
             # self.debuglog("EDIT CHAIN BASE", text)
         for fn, text in self.sources.items():
-            if ":" in fn:
+            fn, suffix = contrast.parse_fn(fn)
+            if suffix is not None:
                 continue
             self.odm["dest"][fn] = text
             # self.debuglog("EDIT CHAIN DEST", text)
