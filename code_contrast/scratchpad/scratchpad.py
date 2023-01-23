@@ -83,7 +83,7 @@ class ScratchpadBase:
                             hlprint(self.enc, [t]),
                             logits[idx, -1, t],
                             add))
-                    logits[idx, :, t] += add
+                    logits[idx, -1, t] += add
 
         if top_ps is not None and top_ks is not None:
             for b in range(logits.shape[0]):
@@ -91,10 +91,10 @@ class ScratchpadBase:
                     logits[b, -1], temperature=temperatures[b],
                     top_p=top_ps[b], top_k=top_ks[b]
                 )
-            probs = logits.softmax(dim=-1)
+            probs = logits[:, [-1]].softmax(dim=-1)
             a = th.multinomial(probs, num_samples=1)
         else:
-            probs = (logits / (temperatures + 0.01)).squeeze(1).softmax(dim=-1)
+            probs = (logits[:, [-1]] / (temperatures + 0.01)).squeeze(1).softmax(dim=-1)
             a = th.multinomial(probs, num_samples=1)
         tokens.copy_(a, non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)

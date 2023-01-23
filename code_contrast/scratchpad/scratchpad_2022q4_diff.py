@@ -52,6 +52,9 @@ class ScratchpadDiff(ScratchpadBase):
         self.no_stop_tokens_until = -1
         self.selected_newlines = -1
         self.selection_is_important = (self.function in ["diff-atcursor", "diff-selection"])
+        self.backward_cache_snippet: str = ""
+        self.backward_cache_tokens: List[int] = []
+        self.backward_cache_cursor: int = 0
         self.P1 = 0.35
         self.P2 = 0.20
         self.JP1 = 0.20
@@ -66,13 +69,13 @@ class ScratchpadDiff(ScratchpadBase):
             self,
             m: Any,
             b: int,
-            logit: th.Tensor,
+            logits: th.Tensor,
             heads: List[th.Tensor],
             **unused
     ) -> Dict[str, Any]:
         if self.state_before_first_tpos:
             if self.function == "highlight":
-                self.highlight_method4(m, b, logit, heads)
+                self.highlight_method4(m, b, logits, heads)
             self.state_before_first_tpos = False
         prev_token = self.diff.r[-1]
         suggest_tokens = []
@@ -101,6 +104,23 @@ class ScratchpadDiff(ScratchpadBase):
                         if extra_newlines >= 0:
                             logits_intrusion[self.enc.ESCAPE] = 5.0 + 0.5 * extra_newlines
                 # edit works like this: scratch[e.real_delstart:e.real_delends] = e.toins
+        T = logits.shape[0]
+        UPTO = 10
+        if T > UPTO and self.backward_cache_cursor > 0:  # infill function only
+            # self.backward_cache_cursor -- position of the infill token minus about three
+            # self.backward_cache_snippet -- original file until cursor
+            argmax = th.argmax(logits[self.backward_cache_cursor-UPTO-1:self.backward_cache_cursor], dim=1)
+            self.backward_cache_tokens = []
+            for minus in range(1, UPTO):
+                t = self.diff.r[self.backward_cache_cursor - minus]
+                if self.enc.is_tpos(t):
+                    continue
+                if t == argmax[-minus-1]:
+                    self.backward_cache_tokens = [t] + self.backward_cache_tokens
+                else:
+                    self.debuglog("PROMPT TOKEN \"%s\" BUT ARGMAX FROM PREVIOUS \"%s\""  % (self.enc.decode([t]), self.enc.decode([argmax[-minus-1].item()])))
+                    break
+            self.debuglog("BACK CACHE \"%s\"" % (self.enc.decode(self.backward_cache_tokens).replace("\n", "\\n")))
         return dict(
             logits_intrusion=logits_intrusion,
             suggest_tokens=suggest_tokens,
@@ -112,13 +132,29 @@ class ScratchpadDiff(ScratchpadBase):
             chosen_token: th.Tensor,
             **unused
     ) -> Dict[str, Any]:
-        self.diff.r.append(chosen_token.item())
+        t = chosen_token.item()
+        self.diff.r.append(t)
         self.diff_out_catch_up()
         self.generated_tokens_n += 1
+        if self.generated_tokens_n <= 3:
+            self.backward_cache_tokens.append(t)
         return dict()
 
     def toplevel_fields(self):
-        return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
+        if self.function == "highlight":
+            return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
+        if self.function == "infill":
+            cached_longer_txt = self.enc.decode(self.backward_cache_tokens)
+            self.debuglog("backward_cache \"%s\"" % (cached_longer_txt.replace("\n", "\\n")))
+            self.debuglog("backward_cache_snippet \"%s\"" % (self.backward_cache_snippet.replace("\n", "\\n")))
+            for cut_extra in range(min(len(cached_longer_txt), 40)):
+                cached = cached_longer_txt[:len(cached_longer_txt)-cut_extra]
+                if self.backward_cache_snippet.endswith(cached):
+                    self.debuglog("backward_cache final \"%s\"" % (cached.replace("\n", "\\n")))
+                    return {"backward_cache": cached}
+            self.debuglog("backward_cache 🤷")
+            return {"backward_cache": ""}
+        return {}
 
     def completion(self, final: bool):
         if final:
@@ -193,6 +229,7 @@ class ScratchpadDiff(ScratchpadBase):
             exact_cx_lines0=2,
             exact_cx_lines1=0,
             )
+        self.backward_cache_cursor = self.diff.r.index(self.enc.INFILL)
         self.diff.write_edits()
         assert len(self.diff.edits) == 1
         while len(self.diff.r) > 0:
@@ -200,8 +237,11 @@ class ScratchpadDiff(ScratchpadBase):
             if t == self.enc.DUMMY:
                 break
         del3more = 3
+        self.backward_cache_snippet = text[:self.cursor0]
+        self.backward_cache_deltokens = 0
         while len(self.diff.r) > 0 and self.diff.r[-1] not in [self.enc.LF] and del3more > 0:
             self.diff.r.pop()
+            self.backward_cache_cursor -= 1
             del3more -= 1
 
     def prompt_edit_chain(self, T):
@@ -315,7 +355,7 @@ class ScratchpadDiff(ScratchpadBase):
         else:
             self.prompt_normal_diff(T)
         if len(self.diff.r) >= T:
-            self.debuglog("PACKING FAILED\n")
+            self.debuglog("PACKING FAILED %i TOKENS\n" % (len(self.diff.r)))
             return []
         self.no_stop_tokens_until = len(self.diff.r)
         if self.diff_out is None:
