@@ -9,7 +9,7 @@ from code_contrast.contrast import contrast
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
 
-from typing import Dict, Optional, Any, List
+from typing import Dict, Optional, Any, List, Tuple
 
 
 class ScratchpadDiff(ScratchpadBase):
@@ -41,12 +41,12 @@ class ScratchpadDiff(ScratchpadBase):
         self.highlight16 = []
         self.t_cursor0 = -1
         self.t_cursor1 = -1
-        self.tpos_cursor0 = -1
         self.tpos_cursor1 = -1
         self.edits_uploaded = 0
         self.prompt_edits = 0
         self.cursorfile_tokens1 = None
         self.cursorfile_tokens2 = None
+        self.cursorfile_map1to2 = None
         self.cursorfile_map2to1 = None
         self.increase_logits = []
         self.no_stop_tokens_until = -1
@@ -91,7 +91,7 @@ class ScratchpadDiff(ScratchpadBase):
         ):
             e = self.diff_out_us.brewing_edit
             scratch = self.diff_out_us.scratch[e.fn]
-            if self.tpos_cursor1 != -1:
+            if self.cursorfile_tokens2 is not None:
                 tokens2 = self.cursorfile_tokens2
                 assert all(tokens2[i] == scratch[i] for i in range(len(scratch)))
                 # print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_delstart:e.real_delends]), "yellow"))
@@ -370,16 +370,21 @@ class ScratchpadDiff(ScratchpadBase):
     def _find_selection_in_tokens(self):
         assert self.cursor0 > -1 and self.cursor1 > -1, "cursor not set cursor0=%i cursor1=%i" % (self.cursor0, self.cursor1)
         if self.cursorfile_tokens1 is None:
-            tokens1, tokens2, map2to1 = self._fn_create_map2to1(self.cursor_file)    # works fast ~1ms
-            self.cursorfile_tokens1 = tokens1
-            self.cursorfile_tokens2 = tokens2
-            self.cursorfile_map2to1 = map2to1
-            assert len(map2to1) == len(tokens2)
-        self.t_cursor0, self.tpos_cursor0 = self._find_cursor_in_tokens(self.cursor0)   # works slow
-        if self.cursor1 != self.cursor0:
-            self.t_cursor1, self.tpos_cursor1 = self._find_cursor_in_tokens(self.cursor1)
-        else:
-            self.t_cursor1, self.tpos_cursor1 = self.t_cursor0, self.tpos_cursor0
+            self.diff_out_catch_up()
+            # equals to self.diff_out
+            self.cursorfile_tokens1 = \
+                self.diff.orig_tokens[self.cursor_file]
+            # all tokens including previously cut top/bottom, with postion tokens in the middle
+            self.cursorfile_tokens2 = \
+                self.diff_out.orig_withpos[self.cursor_file]
+            # works fast ~1ms
+            self.cursorfile_map1to2, self.cursorfile_map2to1 = \
+                self._fn_create_map1to2(self.cursorfile_tokens1, self.cursorfile_tokens2)
+
+        # potentially slow if we get non-unicode encoded string
+        self.t_cursor0, self.t_cursor1 = self._find_cursor_in_tokens(
+            self.cursor0, self.cursor1, self.cursorfile_tokens1, self.cursorfile_map1to2)
+
         # self.debuglog(
         #     termcolor.colored(self.enc.decode(tokens2[:self.t_cursor0]), "yellow") +
         #     termcolor.colored("|", "green") +
@@ -389,47 +394,19 @@ class ScratchpadDiff(ScratchpadBase):
         #     )
         self.selected_newlines = len([t for t in self.cursorfile_tokens2[self.t_cursor0:self.t_cursor1] if t == self.enc.LF])
 
-    def _find_cursor_in_tokens(self, cursor):
-        tokens1, tokens2, map2to1 = self.cursorfile_tokens1, self.cursorfile_tokens2, self.cursorfile_map2to1
-        left = 0
-        right = len(tokens2) - 1
-        while left <= right:
-            mid = (left + right) // 2
-            no_tpos = tokens1[:map2to1[mid]]
-            shortage = map2to1[mid] > len(tokens1)
-            if shortage > 0:
-                no_tpos += [0]*shortage
-            chars = self.enc.decode(no_tpos)
-            if len(chars) < cursor:
-                left = mid + 1
-            elif len(chars) > cursor:
-                right = mid - 1
-            else:
-                break
-        if self.enc.is_tpos(tokens2[mid]):
-            mid += 1
-        c = result = mid
-        while c < len(tokens2):
-            if self.enc.is_tpos(tokens2[c]):
-                return result, c
-            c += 1
-        self.debuglog("Cannot find cursor position in area covered by position tokens. This indicates a wrong way to cut the file top/bottom.")
-        return result, 0
-
-    def _fn_create_map2to1(self, fn):
-        self.diff_out_catch_up()
-        tokens1 = self.diff.orig_tokens[fn]      # equals to self.diff_out
-        tokens2 = self.diff_out.orig_withpos[fn] # all tokens including previously cut top/bottom, with postion tokens in the middle
-        # print(hlprint(self.enc, tokens2))
+    def _fn_create_map1to2(self, tokens1: List[int], tokens2: List[int]) -> Tuple[List[int], List[int]]:
         i1 = 0
+        map1to2 = []
         map2to1 = []
         # At the end after escape, only diamonds and the last tpos are allowed:
         seen_escape = False
-        for i, t in enumerate(tokens2):
+        for i2, t in enumerate(tokens2):
             map2to1.append(i1)
             if self.enc.is_tpos(t):
-                pass
-            elif t == self.enc.ESCAPE:
+                continue
+            if i1 == len(map1to2) and i1 < len(tokens1):
+                map1to2.append(i2)
+            if t == self.enc.ESCAPE:
                 seen_escape = True
                 i1 += 1
             elif t == self.enc.DIAMOND:
@@ -439,7 +416,44 @@ class ScratchpadDiff(ScratchpadBase):
                 i1 += 1
             else:
                 assert 0
-        return tokens1, tokens2, map2to1
+        assert len(tokens1) == len(map1to2)
+        assert len(tokens2) == len(map2to1)
+        return map1to2, map2to1
+
+    def _find_cursor_in_tokens(self, cursor0: int, cursor1: int, tokens: List[int], map1to2: List[int]):
+        assert cursor0 <= cursor1
+        t_cursor0 = None
+        t_cursor1 = None
+        token_idx = 0
+        text_idx = 0
+
+        def decodable_text_steps(token_idx: int) -> Tuple[int, int]:
+            text = self.enc.token2text[tokens[token_idx]]
+            if "�" not in text:
+                return 1, len(text)
+            token_jdx = token_idx + 2
+            while token_jdx <= len(tokens):
+                text = self.enc.decode(tokens[token_idx:token_jdx])
+                if "�" not in text:
+                    return token_jdx - token_idx, len(text)
+                token_jdx += 1
+            else:
+                raise RuntimeError("invalid tokens1: cannot decode utf8 sequence")
+
+        while token_idx < len(tokens):
+            token_step, text_step = decodable_text_steps(token_idx)
+            if t_cursor0 is None and text_idx + text_step > cursor0:
+                t_cursor0 = token_idx
+            if t_cursor1 is None and text_idx >= cursor1:
+                t_cursor1 = token_idx
+            token_idx += token_step
+            text_idx += text_step
+
+        t_cursor0 = len(tokens) - 1 if t_cursor0 is None else t_cursor0
+        t_cursor1 = t_cursor1 if cursor0 < cursor1 else t_cursor0  # special case
+        t_cursor1 = len(tokens) - 1 if t_cursor1 is None else t_cursor1
+        assert t_cursor0 <= t_cursor1
+        return map1to2[t_cursor0], map1to2[t_cursor1]
 
     def highlight_method4(self, m: Any, b, logit, heads):
         t0 = time.time()

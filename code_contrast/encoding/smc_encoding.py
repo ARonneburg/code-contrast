@@ -152,6 +152,10 @@ class SMCEncoding:
         else:
             assert 0
 
+        self.token2text = dict()
+        for t in range(self.n_vocab):
+            self.token2text[t] = self.decode([t])
+
     def _encode_token(self, text: str) -> int:
         if self._tokenizer:
             tokens = self._tokenizer.encode(text).ids
