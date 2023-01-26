@@ -100,7 +100,7 @@ class Inference:
     ) -> Dict[str, Any]:
         output = defaultdict(list)
         for k, v in scratchpad.before_token_selection(
-                self._model, b=0, logit=logits[0], heads=dict(x_bte=hidden_state)).items():
+                self._model, b=0, logits=logits, heads=dict(x_bte=hidden_state)).items():
             output[k].append(v)
         return output
 
@@ -279,7 +279,6 @@ class Inference:
                         else:
                             yield None
                 assert scratchpad.finish_reason
-                scratchpad.finalize()
                 yield self._json_result(scratchpad, status="completed")
         except Exception as e:
             logging.error(e)
