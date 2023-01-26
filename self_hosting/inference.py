@@ -46,6 +46,7 @@ class Inference:
         self._model: Optional[CodifyModel] = None
         self._encoding = None
         self._model_name = None
+        self._last_error = None
 
         self._model_setup_thread = Thread(
             target=self._model_setup,
@@ -94,13 +95,12 @@ class Inference:
 
     def _before_token_selection(
             self,
-            logits: torch.Tensor,
             hidden_state: torch.Tensor,
             scratchpad: ScratchpadBase,
     ) -> Dict[str, Any]:
         output = defaultdict(list)
         for k, v in scratchpad.before_token_selection(
-                self._model, b=0, logits=logits, heads=dict(x_bte=hidden_state)).items():
+                self._model, b=0, logit=None, heads=dict(x_bte=hidden_state)).items():
             output[k].append(v)
         return output
 
@@ -166,7 +166,7 @@ class Inference:
             logits = logits[:, [-1], :self._encoding.n_vocab]
 
             before_kwargs = self._before_token_selection(
-                logits=logits, hidden_state=hidden_state, scratchpad=scratchpad)
+                hidden_state=hidden_state, scratchpad=scratchpad)
 
             select_kwargs = self._select_tokens(
                 logits=logits,
@@ -220,8 +220,8 @@ class Inference:
                 self._model = None
                 self._encoding = None
                 self._model_name = None
-                logging.error("model fetch failed:")
-                logging.error(e)
+                self._last_error = f"model fetch failed: {e}"
+                logging.error(self._last_error)
                 time.sleep(fetch_timeout)
                 continue
 
@@ -232,6 +232,7 @@ class Inference:
             with self._model_lock:
                 try:
                     self._model_name = None
+                    self._last_error = None
                     self._model = CodifyModel.from_pretrained(
                         str(workdir / "weights"), device=self._device, repo_id=model_path)
                     self._model = self._model.eval()
@@ -242,8 +243,8 @@ class Inference:
                     self._model = None
                     self._encoding = None
                     self._model_name = None
-                    logging.error(f"model {model_name} loading failed:")
-                    logging.error(e)
+                    self._last_error = f"model {model_name} loading failed: {e}"
+                    logging.error(self._last_error)
             time.sleep(fetch_timeout)
 
     @staticmethod
@@ -288,3 +289,7 @@ class Inference:
     @property
     def model_name(self):
         return self._model_name
+
+    @property
+    def last_error(self):
+        return self._last_error

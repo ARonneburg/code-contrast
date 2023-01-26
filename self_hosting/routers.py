@@ -40,10 +40,10 @@ async def inference_streamer(
 
 def parse_authorization_header(authorization: str = Header(None)) -> str:
     if authorization is None:
-        raise HTTPException(status_code=401, detail="Missing authorization header")
+        raise HTTPException(status_code=401, detail="missing authorization header")
     bearer_hdr = authorization.split(" ")
     if len(bearer_hdr) != 2 or bearer_hdr[0] != "Bearer":
-        raise HTTPException(status_code=401, detail="Invalid authorization header")
+        raise HTTPException(status_code=401, detail="invalid authorization header")
     return bearer_hdr[1]
 
 
@@ -61,7 +61,7 @@ class ActivateRouter(APIRouter):
         token = parse_authorization_header(authorization)
         if self._token != token:
             raise HTTPException(status_code=401,
-                                detail="Server doesn't match with your API key")
+                                detail="server doesn't match with your API key")
         response = {
             "retcode": "OK",
             "human_readable_message": "API key verified"
@@ -86,7 +86,7 @@ class CompletionRouter(APIRouter):
         token = parse_authorization_header(authorization)
         if self._token != token:
             raise HTTPException(status_code=401,
-                                detail="Server doesn't match with your API key")
+                                detail="server doesn't match with your API key")
         request = post.clamp()
         request.update({
             "id": str(uuid4()),
@@ -97,11 +97,12 @@ class CompletionRouter(APIRouter):
             "stream": post.stream,
         })
         if self._inference.model_name is None:
+            last_error = self._inference.last_error
             raise HTTPException(status_code=401,
-                                detail="Server loads model")
+                                detail="model loading" if last_error is None else last_error)
         if post.model != "CONTRASTcode" and self._inference.model_name != post.model:
             raise HTTPException(status_code=401,
-                                detail=f"Requested model '{post.model}' doesn't match "
+                                detail=f"requested model '{post.model}' doesn't match "
                                        f"server model '{self._inference.model_name}'")
         return StreamingResponse(inference_streamer(request, self._inference))
 
@@ -123,7 +124,7 @@ class ContrastRouter(APIRouter):
         token = parse_authorization_header(authorization)
         if self._token != token:
             raise HTTPException(status_code=401,
-                                detail="Server doesn't match with your API key")
+                                detail="server doesn't match with your API key")
         if post.function != "diff-anywhere":
             if post.cursor_file not in post.sources:
                 raise HTTPException(status_code=400,
@@ -159,10 +160,11 @@ class ContrastRouter(APIRouter):
             "stream": post.stream,
         })
         if self._inference.model_name is None:
+            last_error = self._inference.last_error
             raise HTTPException(status_code=401,
-                                detail="Server loads model")
+                                detail="model loading" if last_error is None else last_error)
         if post.model != "CONTRASTcode" and self._inference.model_name != post.model:
             raise HTTPException(status_code=401,
-                                detail=f"Requested model '{post.model}' doesn't match "
+                                detail=f"requested model '{post.model}' doesn't match "
                                        f"server model '{self._inference.model_name}'")
         return StreamingResponse(inference_streamer(request, self._inference))
