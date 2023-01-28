@@ -106,7 +106,7 @@ class ScratchpadDiff(ScratchpadBase):
                 # edit works like this: scratch[e.real_delstart:e.real_delends] = e.toins
         T = logits.shape[0]
         UPTO = 10
-        if T > UPTO and self.backward_cache_cursor > 0:  # infill function only
+        if T > UPTO and self.backward_cache_cursor > UPTO-1:  # infill function only
             # self.backward_cache_cursor -- position of the infill token minus about three
             # self.backward_cache_snippet -- original file until cursor
             argmax = th.argmax(logits[self.backward_cache_cursor-UPTO-1:self.backward_cache_cursor], dim=1)
