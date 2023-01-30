@@ -386,11 +386,11 @@ class ScratchpadDiff(ScratchpadBase):
             self.cursor0, self.cursor1, self.cursorfile_tokens1, self.cursorfile_map1to2)
 
         # self.debuglog(
-        #     termcolor.colored(self.enc.decode(tokens2[:self.t_cursor0]), "yellow") +
+        #     termcolor.colored(self.enc.decode(self.cursorfile_tokens2[:self.t_cursor0]), "yellow") +
         #     termcolor.colored("|", "green") +
-        #     termcolor.colored(self.enc.decode(tokens2[self.t_cursor0:self.t_cursor1]), "red") +
+        #     termcolor.colored(self.enc.decode(self.cursorfile_tokens2[self.t_cursor0:self.t_cursor1]), "red") +
         #     termcolor.colored("|", "green") +
-        #     termcolor.colored(self.enc.decode(tokens2[self.t_cursor1:]), "yellow")
+        #     termcolor.colored(self.enc.decode(self.cursorfile_tokens2[self.t_cursor1:]), "yellow")
         #     )
         self.selected_newlines = len([t for t in self.cursorfile_tokens2[self.t_cursor0:self.t_cursor1] if t == self.enc.LF])
 
