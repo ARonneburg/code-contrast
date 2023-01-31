@@ -179,6 +179,11 @@ class ScratchpadDiff(ScratchpadBase):
         def finish(reason):
             self.finish_reason = reason
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
+            if reason in ["ins-stoptoken", "ins-stop-lflf"] and self.ugly_hack_reattach_next_line:
+                if len(self.diff_out.edits) == 1:
+                    self.debuglog("REATTACH '%s'\n" % (self.ugly_hack_reattach_next_line.replace("\n", "\\n")))
+                    self.diff_out.edits[0].toins.extend(self.enc.encode(self.ugly_hack_reattach_next_line) + [self.enc.LF])
+            self.diff_out_us.state = contrast.WAIT
         try:
             while self.diff_out_cursor < len(self.diff.r):
                 c = self.diff_out_cursor
@@ -217,6 +222,12 @@ class ScratchpadDiff(ScratchpadBase):
                 slash_n_idx = cut_slash_n.find("\n")
                 if slash_n_idx >= 0:
                     cut_slash_n = cut_slash_n[slash_n_idx+1:]
+                if 1:
+                    # To fully remove this, we need to retrain the model, the q1 version should fix it
+                    next_slash_n = cut_slash_n.find("\n")
+                    if next_slash_n >= 0:
+                        self.ugly_hack_reattach_next_line = cut_slash_n[:next_slash_n]
+                        self.debuglog("self.ugly_hack_reattach_next_line \"%s\"" % self.ugly_hack_reattach_next_line.replace("\n", "\\n"))
                 self.odm["orig"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.INFILL]) + cut_slash_n
                 self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DUMMY]) + cut_slash_n
             else:
