@@ -95,12 +95,13 @@ class Inference:
 
     def _before_token_selection(
             self,
+            logits: torch.Tensor,
             hidden_state: torch.Tensor,
             scratchpad: ScratchpadBase,
     ) -> Dict[str, Any]:
         output = defaultdict(list)
         for k, v in scratchpad.before_token_selection(
-                self._model, b=0, logit=None, heads=dict(x_bte=hidden_state)).items():
+                self._model, b=0, logits=logits, heads=dict(x_bte=hidden_state)).items():
             output[k].append(v)
         return output
 
@@ -166,7 +167,9 @@ class Inference:
             logits = logits[:, [-1], :self._encoding.n_vocab]
 
             before_kwargs = self._before_token_selection(
-                hidden_state=hidden_state, scratchpad=scratchpad)
+                logits=logits,
+                hidden_state=hidden_state,
+                scratchpad=scratchpad)
 
             select_kwargs = self._select_tokens(
                 logits=logits,
