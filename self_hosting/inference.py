@@ -198,7 +198,7 @@ class Inference:
 
     @staticmethod
     def _fetch_model(token) -> Tuple[str, str]:
-        url = "https://max.smallcloud.ai/v1/codify-model"
+        url = "https://www.smallcloud.ai/v1/codify-model"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
         response = requests.get(url=url, headers=headers).json()
         if response["retcode"] != "OK":
