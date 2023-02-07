@@ -440,17 +440,16 @@ class ScratchpadDiff(ScratchpadBase):
         text_idx = 0
 
         def decodable_text_steps(token_idx: int) -> Tuple[int, int]:
-            text = self.enc.token2text[tokens[token_idx]]
-            if "�" not in text:
-                return 1, len(text)
-            token_jdx = token_idx + 2
+            token_jdx = token_idx + 1
             while token_jdx <= len(tokens):
-                text = self.enc.decode(tokens[token_idx:token_jdx])
-                if "�" not in text:
+                try:
+                    text = self.enc.decode_utf8(tokens[token_idx:token_jdx])
                     return token_jdx - token_idx, len(text)
-                token_jdx += 1
+                except UnicodeDecodeError:
+                    token_jdx += 1
             else:
-                raise RuntimeError("invalid tokens1: cannot decode utf8 sequence")
+                self.debuglog("invalid tokens: cannot decode utf8 sequence")
+                return len(tokens) - token_idx, len(self.enc.decode(tokens[token_idx:]))
 
         while token_idx < len(tokens):
             token_step, text_step = decodable_text_steps(token_idx)

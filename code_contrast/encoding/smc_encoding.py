@@ -152,9 +152,32 @@ class SMCEncoding:
         else:
             assert 0
 
-        self.token2text = dict()
-        for t in range(self.n_vocab):
-            self.token2text[t] = self.decode([t])
+        if self._tokenizer is not None:
+            # NOTE: this is workaround for huggingface tokenizer
+            self._token2text = dict()
+            for t in range(self.n_vocab):
+                self._token2text[t] = self._tokenizer.decode([t])
+            self._replacement_char = "�"
+            self._replacement_char_token = self._encode_token(self._replacement_char)
+        else:
+            self._token2bytes = dict()
+            for t in range(self.n_vocab):
+                self._token2bytes[t] = self._tik.decode_bytes([t])
+
+    def decode_utf8(self, tokens) -> str:
+        if self._tokenizer:
+            if len(tokens) == 1:
+                if self._replacement_char in self._token2text[tokens[0]] and tokens[0] != self._replacement_char_token:
+                    raise UnicodeDecodeError
+                return self._token2text[tokens[0]]
+            else:
+                text = self.decode(tokens)
+                if self._replacement_char in self._token2text[tokens[0]]:
+                    raise UnicodeDecodeError
+                return text
+        else:
+            text_bytes = b"".join([self._token2bytes[t] for t in tokens])
+            return text_bytes.decode("utf8")
 
     def _encode_token(self, text: str) -> int:
         if self._tokenizer:
