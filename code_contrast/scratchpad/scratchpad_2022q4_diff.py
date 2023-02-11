@@ -96,8 +96,10 @@ class ScratchpadDiff(ScratchpadBase):
                 tokens2 = self.cursorfile_tokens2
                 assert all(tokens2[i] == scratch[i] for i in range(len(scratch)))
                 # print("todel:", termcolor.colored(self.enc.decode(scratch[e.real_delstart:e.real_delends]), "yellow"))
-                # print("suggest: [%s]" % termcolor.colored(self.enc.decode(scratch[e.real_delends:e.real_delends + 8]), "blue"))
-                suggest_tokens = scratch[e.real_delends:e.real_delends + 8]
+                # good, _ = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
+                # print("suggest: [%s]" % termcolor.colored(self.enc.decode(scratch[e.real_delends:e.real_delends + 8]).replace("\n", "\\n"), "blue"))
+                suggest_tokens = scratch[e.real_delends:e.real_delends + 10]
+                suggest_tokens = [t for t in suggest_tokens if not self.enc.is_tpos(t)][:8]
                 if self.selection_is_important:
                     beyond_selection = self.diff_out_us.brewing_edit.real_delends - self.t_cursor1
                     if beyond_selection >= -1:

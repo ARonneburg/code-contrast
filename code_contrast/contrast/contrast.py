@@ -722,11 +722,11 @@ class ContrastDiff:
             return -1
         else:
             # no need to search, confirm existing
-            good, _ = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
+            good, real_delends = self._lookahead_ignoring_tpos(scratch, e.real_delstart, e.todel)
             if not good:
                 e.error = "Cannot apply chunk %i, cannot confirm todel tokens %s + shift %i" % (ie, self.enc.decode([e.tpos]), e.shift)
             else:
-                e.real_delends = e.real_delstart + len(e.todel)
+                e.real_delends = real_delends
         return -1
 
     def edit_apply(self,
