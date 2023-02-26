@@ -109,7 +109,7 @@ class ContrastDiff:
         n_ctx: int,
         commit_ahead: bool =True,
         contrast_unmask_orig: int = 0,
-        auto_shrink = True,
+        random_shrink = True,
         tight_shrink = False,
         exact_cx_lines0 = -1,
         exact_cx_lines1 = -1,
@@ -118,7 +118,10 @@ class ContrastDiff:
         files2 = set(odm["dest"].keys()) if ("dest" in odm) else set(odm["dest_tokens"].keys())
         assert files1 == files2
         files = list(files1)
-        random.shuffle(files)
+        if tight_shrink:
+            files.reverse()
+        else:
+            random.shuffle(files)
         file_poi: Dict[str, Set[int]] = defaultdict(set)
         file_deltokens = defaultdict(list)
         file_dellines = defaultdict(list)
@@ -307,8 +310,29 @@ class ContrastDiff:
             app(tpos_unused.pop() if len(tpos_unused) > 0 else 0, 0)
 
         self.tokens_without_shortening = 0
-        # print("tokens in all files:", sum(len(self.orig_tokens[fn]) for fn in files))
-        passes = ["est", "real"] if (auto_shrink or tight_shrink) else ["real"]
+
+        # Each file has a cut range, r1..r2
+        # We cut files to fit maximally useful information into available context: randomly at train time, tight_shrink in inference.
+        r1: Dict[str, int] = dict()
+        r2: Dict[str, int] = dict()
+        # Relax: distance from the cut to a nearest point of intereset (POI). High value means we can easily cut more.
+        relax1: Dict[str, int] = dict()
+        relax2: Dict[str, int] = dict()
+        SHRINK_DUMP = 0
+        if SHRINK_DUMP:
+            print("tokens in all files:", sum(len(self.orig_tokens[fn]) for fn in files))
+        for fn in files:
+            orig_t = self.orig_tokens[fn]
+            i1, i2 = len(orig_t)//2, len(orig_t)//2
+            if fn in file_poi:
+                i1, i2 = min(file_poi[fn]), max(file_poi[fn])
+            r1[fn] = max(0, i1 - n_ctx)
+            r2[fn] = min(len(orig_t), i2 + n_ctx)
+            relax1[fn] = i1 - r1[fn]
+            relax2[fn] = r2[fn] - i2
+            assert relax1[fn] >= 0
+            assert relax2[fn] >= 0
+        passes = ["est", "real"] if (random_shrink or tight_shrink) else ["real"]
         for pas in passes:
             self.r = []
             self.m = []
@@ -316,6 +340,7 @@ class ContrastDiff:
                 self.offset_commitmsg = len(self.r) + 2
                 self.r.extend(commitmsg_tokens)
                 self.m.extend([0]*len(commitmsg_tokens))
+            self.offset_code_start = len(self.r)
             self.fn2tind = defaultdict(list)
             self.fn2tstart = dict()
             self.fn2cut = dict()
@@ -325,56 +350,58 @@ class ContrastDiff:
             need_to_cut = 0
             if self.tokens_without_shortening > n_ctx:
                 need_to_cut = self.tokens_without_shortening - n_ctx
-            # print("tight_shrink=%i need_to_cut=%i, self.tokens_without_edits=%i, self.tokens_without_shortening=%i, n_ctx=%i" % (
-            #     tight_shrink, need_to_cut, self.tokens_without_edits, self.tokens_without_shortening, n_ctx))
-            saved_check = []
-            self.offset_code_start = len(self.r)
+            saved_log = []
+            for i in range(3):
+                final_iter = (i==2)
+                cut_more = need_to_cut - sum(saved_log)
+                if SHRINK_DUMP:
+                    print("shrink iter %i, cut_more=%i" % (i, cut_more))
+                if pas == "est" or cut_more <= 0:
+                    continue
+                for fn in files:  # in tight_shrink mode, the least important file is first
+                    move_r1 = 0
+                    move_r2 = 0
+                    if tight_shrink:
+                        if relax1[fn] > relax2[fn]:
+                            move_r1 = min(cut_more//3 if not final_iter else cut_more, relax1[fn])
+                        else:
+                            move_r2 = min(cut_more//3 if not final_iter else cut_more, relax2[fn])
+                    else:
+                        if random.random() < 0.5 and relax1[fn] > 1:
+                            move_r1 = random.randint(0, min(cut_more, relax1[fn]))
+                        if random.random() < 0.5 and relax2[fn] > 1:
+                            move_r2 = random.randint(0, min(cut_more, relax2[fn]))
+                    assert move_r1 >= 0 and move_r2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
+                    if SHRINK_DUMP:
+                        print("%s relax1=%i, relax2=%i => move_r1=%i, move_r2=%i" % (fn, relax1[fn], relax2[fn], move_r1, move_r2))
+                        print("%s need_to_cut=%i, cut_more=%i, r1=%i, r2=%i" % (fn, need_to_cut, cut_more, r1[fn], r2[fn]))
+                    r1[fn] += move_r1
+                    relax1[fn] -= move_r1
+                    r2[fn] -= move_r2
+                    relax2[fn] -= move_r2
+                    if SHRINK_DUMP:
+                        print("%s need_to_cut=%i, cut_more=%i, r1=%i, r2=%i" % (fn, need_to_cut, cut_more, r1[fn], r2[fn]))
+                    cut_more = need_to_cut - move_r1 - move_r2 - sum(saved_log)
+                    if cut_more <= 0:
+                        break
+                    saved_log.append(move_r1)
+                    saved_log.append(move_r2)
             for fn in files:
                 orig_t = self.orig_tokens[fn]
-                i1, i2 = len(orig_t)//2, len(orig_t)//2
-                if fn in file_poi:
-                    i1, i2 = min(file_poi[fn]), max(file_poi[fn])
-                r1 = r1init = max(0, i1 - n_ctx)
-                r2 = r2init = min(len(orig_t), i2 + n_ctx)
-                cut_this_file = need_to_cut - sum(saved_check)
-                if pas == "real" and cut_this_file > 0:
-                    for i in range(3):
-                        if tight_shrink:
-                            if i == 0:
-                                #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (1)" % (fn, need_to_cut, cut_this_file, r1, r2))
-                                r2 = max(i2, r2 - cut_this_file)
-                            elif i == 1:
-                                #print("%s need_to_cut=%i, cut_this_file=%i, r1=%i, r2=%i (2)" % (fn, need_to_cut, cut_this_file, r1, r2))
-                                r1 = min(r1 + cut_this_file, i1)
-                        else:
-                            if random.random() < 0.5:
-                                r1 = random.randint(r1, i1)
-                            if random.random() < 0.5:
-                                r2 = random.randint(i2, r2)
-                        saved1 = r1 - r1init
-                        saved2 = r2init - r2
-                        assert saved1 >= 0 and saved2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
-                        cut_this_file = need_to_cut - saved1 - saved2 - sum(saved_check)
-                        if cut_this_file <= 0:
-                            break
-                    # print(" => %s need_to_cut=%i, cut_this_file=%i, saved1=%i, saved2=%i" % (fn, need_to_cut, cut_this_file, saved1, saved2))
-                    saved_check.append(saved1)
-                    saved_check.append(saved2)
-                t = [self.enc.FILE] + self.enc.encode(" " + fn + ":%i" % r1) + [self.enc.ESCAPE]
+                t = [self.enc.FILE] + self.enc.encode(" " + fn + ":%i" % r1[fn]) + [self.enc.ESCAPE]
                 self.r.extend(t)
                 self.m.extend([0]*len(t))
-                #print("writing %s %i..%i out of %i" % (fn, r1, r2, len(orig_t)))
-                append_with_tpos_tokens(orig_t[r1:r2] + [self.enc.ESCAPE], fn)
+                if SHRINK_DUMP:
+                    print("pass=%s writing %s %i..%i out of %i" % (pas, fn, r1[fn], r2[fn], len(orig_t)))
+                append_with_tpos_tokens(orig_t[r1[fn]:r2[fn]] + [self.enc.ESCAPE], fn)
                 if pas=="real" and len(tpos_unused) < len(self.enc.tpos):
                     raise TooBig("too many position tokens was used")
-                self.fn2cut[fn] = r1
+                self.fn2cut[fn] = r1[fn]
             self.offset_code_end = len(self.r)
             if not commit_ahead:
                 self.offset_commitmsg = len(self.r) + 2
                 self.r.extend(commitmsg_tokens)
                 self.m.extend([0]*len(commitmsg_tokens))
-            #if self.tokens_without_shortening != -1:
-            #    print("shouldbe tokens_without_shortening=%i - saved=%i = %i" % (self.tokens_without_shortening, sum(saved_check), self.tokens_without_shortening - sum(saved_check)))
             if pas == "est":
                 generate_edits()
                 self.tokens_without_edits = len(self.r)
@@ -862,13 +889,6 @@ example_odm = {
 }
 
 
-# A longer example to test file cutting
-example_odm = {
-    "orig": {"courses/views.py": "from django.shortcuts import render\nfrom django.views.generic import ListView, DetailView, View\nfrom .models import Course, Lesson\n\n\nclass CourseListView(ListView):\n    model = Course\n\n\nclass CourseDetailView(DetailView):\n    model = Course\n\n\nclass LessonDetailView(View):\n\n    def get(self, request, course_slug, lesson_slug, *args, **kwargs):\n        course_qs = Course.objects.filter(slug=course_slug)\n        if course_qs.exists():\n            course = course_qs.first()\n        lesson_qs = course.lessons.filter(slug=lesson_slug)\n        if lesson_qs.exists():\n            lesson = lesson_qs.first()\n        context = {\n            'object': lesson\n        }\n\n        return render(request, \"courses/lesson_detail.html\", context)\n"},
-    "commitmsg": "lisson view",
-    "dest": {"courses/views.py": "from django.shortcuts import render, get_object_or_404\nfrom django.views.generic import ListView, DetailView, View\n\nfrom member_ships.models import UserMembership\nfrom .models import Course, Lesson\n\n\nclass CourseListView(ListView):\n    model = Course\n\n\nclass CourseDetailView(DetailView):\n    model = Course\n\n\nclass LessonDetailView(View):\n\n    def get(self, request, course_slug, lesson_slug, *args, **kwargs):\n        course_qs = Course.objects.filter(slug=course_slug)\n        lesson = None\n        course = None\n        if course_qs.exists():\n            course = course_qs.first()\n        lesson_qs = course.lessons.filter(slug=lesson_slug)\n        if lesson_qs.exists():\n            lesson = lesson_qs.first()\n        context = {\n            'object': None\n        }\n        # print(request.user)\n        # user_membership = UserMembership.objects.filter(user=request.user).first()\n        # user_membership_type = user_membership.membership.membership_type\n        # course_allowed_mem_types = course.allowed_membership.all()\n        user_membership = get_object_or_404(UserMembership, user=request.user)\n        print(\"user_member ship --------\")\n        print(user_membership)\n\n        user_membership_type = user_membership.membership.membership_type\n        course_allowed_mem_types = course.allowed_membership.all()\n\n        if course_allowed_mem_types.filter(membership_type=user_membership_type).exists():\n            context = {'object': lesson}\n        return render(request, \"courses/lesson_detail.html\", context)\n"}
-}
-
 
 def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
     import time
@@ -931,5 +951,5 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, 
 
 if __name__ == "__main__":
     enc = SMCEncoding("openai_programming_v2")
-    self_test(enc, example_odm, verbose=True, n_ctx=2049)
+    self_test(enc, example_odm, verbose=True, n_ctx=512)
 
