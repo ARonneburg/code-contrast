@@ -148,14 +148,14 @@ class ScratchpadDiff(ScratchpadBase):
             return {"highlight_tokens": self.highlight, "highlight_lines": self.highlight16}
         if self.function == "infill":
             cached_longer_txt = self.enc.decode(self.backward_cache_tokens)
-            self.debuglog("backward_cache \"%s\"" % (cached_longer_txt.replace("\n", "\\n")))
-            self.debuglog("backward_cache_snippet \"%s\"" % (self.backward_cache_snippet.replace("\n", "\\n")))
+            #self.debuglog("backward_cache \"%s\"" % (cached_longer_txt.replace("\n", "\\n")))
+            #self.debuglog("backward_cache_snippet \"%s\"" % (self.backward_cache_snippet.replace("\n", "\\n")))
             for cut_extra in range(min(len(cached_longer_txt), 40)):
                 cached = cached_longer_txt[:len(cached_longer_txt)-cut_extra]
                 if self.backward_cache_snippet.endswith(cached):
-                    self.debuglog("backward_cache final \"%s\"" % (cached.replace("\n", "\\n")))
+                    # self.debuglog("backward_cache final \"%s\"" % (cached.replace("\n", "\\n")))
                     return {"backward_cache": cached}
-            self.debuglog("backward_cache 🤷")
+            # self.debuglog("backward_cache 🤷")
             return {"backward_cache": ""}
         return {}
 
@@ -331,7 +331,7 @@ class ScratchpadDiff(ScratchpadBase):
                     break
             while len(self.diff.r) > 0 and self.diff.r[-1] not in [self.enc.LF]:
                 self.diff.r.pop()
-        elif self.cursorfile_tokens2 is not None:
+        elif self.cursorfile_tokens2 is not None and self.selection_is_important:
             # multi line selection, logits
             i = self.t_cursor0
             over = False

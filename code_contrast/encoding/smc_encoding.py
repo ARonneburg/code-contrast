@@ -89,7 +89,7 @@ class SMCEncoding:
                 last_special_plus_one = 50281
             else:
                 assert 0
-            chars = "XYZV"
+            chars = "ABCD"
             position_tokens = ["⪦" +
                     chars[i//4//4//4//4 % 4] +
                     chars[i//4//4//4 % 4] +

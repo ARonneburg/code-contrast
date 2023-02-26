@@ -306,6 +306,8 @@ class ContrastDiff:
                 cursor += 1
             app(tpos_unused.pop() if len(tpos_unused) > 0 else 0, 0)
 
+        self.tokens_without_shortening = 0
+        # print("tokens in all files:", sum(len(self.orig_tokens[fn]) for fn in files))
         passes = ["est", "real"] if (auto_shrink or tight_shrink) else ["real"]
         for pas in passes:
             self.r = []
@@ -324,16 +326,16 @@ class ContrastDiff:
             if self.tokens_without_shortening > n_ctx:
                 need_to_cut = self.tokens_without_shortening - n_ctx
             # print("tight_shrink=%i need_to_cut=%i, self.tokens_without_edits=%i, self.tokens_without_shortening=%i, n_ctx=%i" % (
-            #    tight_shrink, need_to_cut, self.tokens_without_edits, self.tokens_without_shortening, n_ctx))
-            #print("n_ctx=%i" % (n_ctx))
+            #     tight_shrink, need_to_cut, self.tokens_without_edits, self.tokens_without_shortening, n_ctx))
             saved_check = []
             self.offset_code_start = len(self.r)
-            for fi, fn in enumerate(files):
+            for fn in files:
                 orig_t = self.orig_tokens[fn]
                 i1, i2 = len(orig_t)//2, len(orig_t)//2
                 if fn in file_poi:
                     i1, i2 = min(file_poi[fn]), max(file_poi[fn])
-                r1, r2 = 0, len(orig_t)
+                r1 = r1init = max(0, i1 - n_ctx)
+                r2 = r2init = min(len(orig_t), i2 + n_ctx)
                 cut_this_file = need_to_cut - sum(saved_check)
                 if pas == "real" and cut_this_file > 0:
                     for i in range(3):
@@ -349,8 +351,8 @@ class ContrastDiff:
                                 r1 = random.randint(r1, i1)
                             if random.random() < 0.5:
                                 r2 = random.randint(i2, r2)
-                        saved1 = r1
-                        saved2 = len(orig_t) - r2
+                        saved1 = r1 - r1init
+                        saved2 = r2init - r2
                         assert saved1 >= 0 and saved2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
                         cut_this_file = need_to_cut - saved1 - saved2 - sum(saved_check)
                         if cut_this_file <= 0:
