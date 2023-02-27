@@ -1,6 +1,7 @@
 import torch as th
 import time
 import termcolor
+import collections
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
@@ -23,6 +24,7 @@ class ScratchpadDiff(ScratchpadBase):
         function: str,
         max_edits: int,
         sources: Dict[str, str],
+        poi: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ):
         super().__init__(enc, **kwargs)
@@ -33,6 +35,21 @@ class ScratchpadDiff(ScratchpadBase):
         self.function = function
         self.max_edits = max_edits
         self.sources = sources
+        self.file_poi = collections.defaultdict(set)
+        if poi is not None:
+            # "poi": [{'filename': 'attractgame_mainloop.py', 'cursor0': 0, 'cursor1': 971, 'priority': 0.944}]
+            for rec in poi:
+                fn = rec.get("filename", None)
+                if not isinstance(fn, str):
+                    continue
+                if fn.endswith(cursor_file):  # temporary kludge, remove
+                    continue
+                if not isinstance(rec.get("cursor0", None), int):
+                    continue
+                if not isinstance(rec.get("cursor1", None), int):
+                    continue
+                self.file_poi[fn].add(int(rec["cursor0"]))
+                self.file_poi[fn].add(int(rec["cursor1"]))
         self.state_before_first_tpos = True
         self.diff: contrast.ContrastDiff = None
         self.diff_out: Optional[contrast.ContrastDiff] = None
@@ -242,6 +259,7 @@ class ScratchpadDiff(ScratchpadBase):
             tight_shrink=True,
             exact_cx_lines0=2,
             exact_cx_lines1=0,
+            external_poi=self.file_poi,
             )
         self.backward_cache_cursor = self.diff.r.index(self.enc.INFILL)
         self.diff.write_edits()

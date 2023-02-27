@@ -113,6 +113,7 @@ class ContrastDiff:
         tight_shrink = False,
         exact_cx_lines0 = -1,
         exact_cx_lines1 = -1,
+        external_poi: Optional[DefaultDict[str, Set[int]]] = None,
     ) -> Dict[str, List[int]]:
         files1 = set(odm["orig"].keys()) if ("orig" in odm) else set(odm["orig_tokens"].keys())
         files2 = set(odm["dest"].keys()) if ("dest" in odm) else set(odm["dest_tokens"].keys())
@@ -122,7 +123,7 @@ class ContrastDiff:
             files.reverse()
         else:
             random.shuffle(files)
-        file_poi: Dict[str, Set[int]] = defaultdict(set)
+        file_poi = defaultdict(set)
         file_deltokens = defaultdict(list)
         file_dellines = defaultdict(list)
         file_contlines = defaultdict(list)
@@ -155,7 +156,18 @@ class ContrastDiff:
                 disable_insert=True)
             fndiff = ops_remove_short_equals(fndiff, upto=2)
             DUMP_DIFF = 0
+            poi_char_cursor = 0
+            external_poi_fn = defaultdict(set)
+            if external_poi is not None:
+                external_poi_fn = external_poi[fn]
+                if 0 in external_poi_fn:
+                    file_poi[fn].add(0)
             def orig_app(line):
+                nonlocal poi_char_cursor
+                for poi_chars in external_poi_fn:
+                    if poi_char_cursor < poi_chars <= poi_char_cursor + len(line):
+                        file_poi[fn].add(len(orig_all_tokens))
+                poi_char_cursor += len(line)
                 tmp = self.enc.encode(line)
                 if i in dellines:
                     file_dellines[fn].append(len(orig_all_tokens) + len(tmp) - 1)
