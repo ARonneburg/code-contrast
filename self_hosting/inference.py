@@ -12,6 +12,8 @@ from pathlib import Path
 from threading import Thread
 from threading import Lock
 
+from smallcloud.inference_server import head_and_tail
+
 from code_contrast import ScratchpadBase
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
@@ -251,26 +253,55 @@ class Inference:
             time.sleep(fetch_timeout)
 
     @staticmethod
-    def _json_result(scratchpad, status: str):
+    def _json_result(scratchpad: ScratchpadBase, model: str, stream: bool, status: str) -> Optional[Dict]:
         assert status in ["in_progress", "completed"]
-        return {
+
+        if not scratchpad.needs_upload and status not in ["completed"]:
+            return None
+
+        if isinstance(scratchpad, ScratchpadCompletion):
+            completion = scratchpad.completion(final=bool(status == "completed"))
+        else:
+            completion = {"files": scratchpad.completion(final=bool(status == "completed"))}
+
+        result = {
             "id": scratchpad.id,
             "object": "text_completion",
-            "choices": [
-                {
-                    "index": 0,
-                    "text": "",
-                    "files": scratchpad.completion(final=bool(status == "completed")),
-                    "logprobs": None,
-                    "finish_reason": scratchpad.finish_reason
-                },
-            ],
             "status": status,
             "created": scratchpad.created,
             "uploaded": time.time(),
             "generated_tokens_n": scratchpad.generated_tokens_n,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "logprobs": None,
+                    "finish_reason": scratchpad.finish_reason,
+                    **completion,
+                },
+            ],
             **scratchpad.toplevel_fields(),
         }
+
+        if stream and isinstance(scratchpad, ScratchpadDiff):
+            for choice in result["choices"]:
+                files_head_mid_tail = dict()
+                generated = choice.pop("files")
+                assert scratchpad.sources.keys() == generated.keys()
+                for filename in generated.keys():
+                    orig = scratchpad.sources[filename]
+                    dest = generated[filename]
+                    if not orig.endswith("\n"):
+                        orig += "\n"
+                    head, tail = head_and_tail(orig, dest)
+                    files_head_mid_tail[filename] = {
+                        "head": head,
+                        "mid": dest[head:-tail],
+                        "tail": tail,
+                    }
+                choice["files_head_mid_tail"] = files_head_mid_tail
+
+        return result
 
     def infer(self, request: Dict[str, Any], stream: bool) -> Iterable[Optional[Dict[str, Any]]]:
         try:
@@ -278,12 +309,17 @@ class Inference:
                 scratchpad, tokens_prompt = self._prepare_scratchpad(request)
                 with torch.inference_mode():
                     for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
-                        if scratchpad.needs_upload and stream:
-                            yield self._json_result(scratchpad, status="in_progress")
-                        else:
-                            yield None
+                        yield self._json_result(
+                            scratchpad,
+                            model=self._model_name,
+                            stream=stream,
+                            status="in_progress")
                 assert scratchpad.finish_reason
-                yield self._json_result(scratchpad, status="completed")
+                yield self._json_result(
+                    scratchpad,
+                    model=self._model_name,
+                    stream=stream,
+                    status="completed")
         except Exception as e:
             logging.error(e)
             logging.error(traceback.format_exc())

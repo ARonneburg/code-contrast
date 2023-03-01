@@ -8,6 +8,6 @@ setup(
     packages=find_packages(),
     package_data={"code_contrast": ["encoding/*.json"]},
     version="0.0.2",
-    install_requires=["numpy", "tokenizers", "fastapi", "uvicorn", "termcolor",
-                      "cdifflib", "cloudpickle", "dataclasses_json", "torch"],
+    install_requires=["numpy", "tokenizers", "fastapi", "hypercorn", "termcolor",
+                      "cdifflib", "cloudpickle", "dataclasses_json", "torch", "smallcloud"],
 )
