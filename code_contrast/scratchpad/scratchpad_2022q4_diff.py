@@ -250,16 +250,16 @@ class ScratchpadDiff(ScratchpadBase):
                         self.debuglog("self.ugly_hack_reattach_next_line \"%s\"" % self.ugly_hack_reattach_next_line.replace("\n", "\\n"))
                 self.odm["orig"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.INFILL]) + cut_slash_n
                 self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DUMMY]) + cut_slash_n
-            else:
-                self.odm["orig"][fn] = text
-                self.odm["dest"][fn] = text
+            # elif fn in self.file_poi:
+            #     self.odm["orig"][fn] = text
+            #     self.odm["dest"][fn] = text
         self.orig_tokens = self.diff.from_odm_dict(
             self.odm,
             n_ctx=(T - self.max_tokens),
             tight_shrink=True,
             exact_cx_lines0=2,
             exact_cx_lines1=0,
-            external_poi=self.file_poi,
+            # external_poi=self.file_poi,
             )
         self.backward_cache_cursor = self.diff.r.index(self.enc.INFILL)
         self.diff.write_edits()
