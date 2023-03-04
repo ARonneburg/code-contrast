@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from fastapi import FastAPI
 
+from self_hosting.gen_certificate import gen_certificate
 from self_hosting.inference import Inference
 from self_hosting.routers import ActivateRouter
 from self_hosting.routers import CompletionRouter
@@ -39,12 +40,12 @@ if __name__ == "__main__":
     app.include_router(CompletionRouter(args.token, inference))
     app.include_router(ContrastRouter(args.token, inference))
 
+    key_filename, cert_filename = gen_certificate(args.host, args.workdir)
+
     config = Config()
     config.bind = f"{args.host}:{args.port}"
-    # config.logconfig = None
     config.accesslog = "-"
-    # TODO(d.ageev): this is a hack to make the server run correct with jb
-    config.keyfile = "/home/mitya/projects/code-contrast/certs/privkey1.pem"
-    config.certfile = "/home/mitya/projects/code-contrast/certs/cert1.pem"
+    config.keyfile = key_filename
+    config.certfile = cert_filename
 
     asyncio.run(serve(app=app, config=config))

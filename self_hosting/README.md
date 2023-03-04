@@ -50,8 +50,7 @@ docker start -i self_hosting
 
 Go to plugin settings and set custom inference url:
 ```shell
-http://localhost:8008  # if you run server locally
-http://server_host_name:8008  # otherwise
+https://localhost:8008
 ```
 
 Now you can use your own server for codify!
