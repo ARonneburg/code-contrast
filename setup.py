@@ -9,5 +9,6 @@ setup(
     package_data={"code_contrast": ["encoding/*.json"]},
     version="0.0.2",
     install_requires=["numpy", "tokenizers", "fastapi", "hypercorn", "termcolor",
-                      "cdifflib", "cloudpickle", "dataclasses_json", "torch", "smallcloud"],
+                      "huggingface_hub", "tiktoken", "cdifflib", "cloudpickle",
+                      "dataclasses_json", "torch", "smallcloud"],
 )
