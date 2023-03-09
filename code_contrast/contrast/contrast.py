@@ -94,7 +94,6 @@ class ContrastDiff:
         self.m: List[int] = list()
         self.errors: List[str] = list()
         self.tokens_without_shortening = -1
-        self.tokens_without_edits = -1
         self.offset_commitmsg = -1
         self.offset_code_start = -1
         self.offset_code_end = -1
@@ -107,7 +106,8 @@ class ContrastDiff:
         self,
         odm: Dict[str, Any],
         n_ctx: int,
-        commit_ahead: bool =True,
+        n_ctx_supplimentary: int = 500,   # dedicated to supplementary files
+        commit_ahead: bool = True,
         contrast_unmask_orig: int = 0,
         random_shrink = True,
         tight_shrink = False,
@@ -115,8 +115,8 @@ class ContrastDiff:
         exact_cx_lines1 = -1,
         external_poi: Optional[DefaultDict[str, Set[int]]] = None,
     ) -> Dict[str, List[int]]:
-        files1 = set(odm["orig"].keys()) if ("orig" in odm) else set(odm["orig_tokens"].keys())
-        files2 = set(odm["dest"].keys()) if ("dest" in odm) else set(odm["dest_tokens"].keys())
+        files1 = list(odm["orig"].keys())
+        files2 = list(odm["dest"].keys())
         assert files1 == files2
         files = list(files1)
         if tight_shrink:
@@ -322,6 +322,7 @@ class ContrastDiff:
             app(tpos_unused.pop() if len(tpos_unused) > 0 else 0, 0)
 
         self.tokens_without_shortening = 0
+        self.tokens_supplimentary_files = 0
 
         # Each file has a cut range, r1..r2
         # We cut files to fit maximally useful information into available context: randomly at train time, tight_shrink in inference.
@@ -359,49 +360,68 @@ class ContrastDiff:
             tpos_unused = list(self.enc.tpos)
             random.shuffle(tpos_unused)
             tpos_unused *= 2
-            need_to_cut = 0
+            need_to_cut_main = 0
+            need_to_cut_supp = 0
             if self.tokens_without_shortening > n_ctx:
-                need_to_cut = self.tokens_without_shortening - n_ctx
-            saved_log = []
-            cut_step = 1 + need_to_cut // len(files) // 3
-            for i in range(6):  # no heavy lifting in this loop
-                cut_more = need_to_cut - sum(saved_log)
-                if SHRINK_DUMP:
-                    print("shrink iter %i, need_to_cut=%i, cut_more=%i" % (i, need_to_cut, cut_more))
-                if pas == "estimate" or cut_more <= 0:
-                    break
-                # non_important_tokens = 0
-                for fn in files:  # in tight_shrink mode, the least important file is first
-                    # if last:
-                    #     if non_important_tokens
-                    move_r1 = 0
-                    move_r2 = 0
-                    if tight_shrink:
-                        if relax1[fn] > relax2[fn]:
-                            move_r1 = min(cut_step, relax1[fn])
-                        else:
-                            move_r2 = min(cut_step, relax2[fn])
+                need_to_cut_main = self.tokens_without_shortening - n_ctx
+            if self.tokens_supplimentary_files > n_ctx_supplimentary:
+                need_to_cut_supp = self.tokens_supplimentary_files - n_ctx_supplimentary
+            saved_log_main = []
+            saved_log_supp = []
+            cut_files = []
+            if not tight_shrink:
+                for _ in range(3):
+                    cut_files.extend([(fn, False) for fn in files])  # All files are not supplimentary, cut at random
+            else:
+                for _ in range(6):
+                    cut_files.extend([(fn, True) for fn in files[:-1]])    # All supplimentary except the last file
+                for _ in range(6):
+                    cut_files.extend([(files[-1], False)])
+            for fn, is_file_supplimentary in cut_files:
+                # no heavy lifting in this loop
+                cut_more_main = need_to_cut_main - sum(saved_log_main) - sum(saved_log_supp)
+                cut_more_supp = need_to_cut_supp - sum(saved_log_supp)
+                if SHRINK_DUMP and is_file_supplimentary:
+                    print("\nCUT tokens_supplimentary_files=%i, need_to_cut_supp=%i, cut_more_supp=%i" % (self.tokens_supplimentary_files, need_to_cut_supp, cut_more_supp))
+                if SHRINK_DUMP and not is_file_supplimentary:
+                    print("\nCUT tokens_without_shortening=%i, need_to_cut_main=%i, cut_more_main=%i" % (self.tokens_without_shortening, need_to_cut_main, cut_more_main))
+                cut_more = cut_more_supp if is_file_supplimentary else cut_more_main
+                if cut_more <= 0:
+                    continue
+                move_r1 = 0
+                move_r2 = 0
+                if tight_shrink:
+                    if is_file_supplimentary:
+                        relaxable_supp_files_cnt = sum([1 for fn in files[:-1] if relax1[fn] > 0 or relax2[fn] > 0])
+                        relaxable_supp_files_cnt = max(1, relaxable_supp_files_cnt)
+                        cut_step = 1 + need_to_cut_supp // relaxable_supp_files_cnt // 3
                     else:
-                        if random.random() < 0.5 and relax1[fn] > 1:
-                            move_r1 = random.randint(0, min(cut_more, relax1[fn]))
-                        if random.random() < 0.5 and relax2[fn] > 1:
-                            move_r2 = random.randint(0, min(cut_more, relax2[fn]))
-                    assert move_r1 >= 0 and move_r2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
-                    if SHRINK_DUMP:
-                        print("%s relax1=%i, relax2=%i => move_r1=%i, move_r2=%i" % (fn, relax1[fn], relax2[fn], move_r1, move_r2))
-                        print("%s cut_more=%i, r1=%i, r2=%i" % (fn, cut_more, r1[fn], r2[fn]))
-                    r1[fn] += move_r1
-                    relax1[fn] -= move_r1
-                    r2[fn] -= move_r2
-                    relax2[fn] -= move_r2
-                    cut_more = need_to_cut - move_r1 - move_r2 - sum(saved_log)
-                    if SHRINK_DUMP:
-                        print("%s cut_more=%i, r1=%i, r2=%i" % (" "*len(fn), cut_more, r1[fn], r2[fn]))
-                    saved_log.append(move_r1)
-                    saved_log.append(move_r2)
-                    if cut_more <= 0:
-                        break
-            for fn in files:
+                        cut_step = 1 + (need_to_cut_main - sum(saved_log_supp)) // 3
+                    if relax1[fn] > relax2[fn]:
+                        move_r1 = min(cut_step, cut_more, relax1[fn])
+                    else:
+                        move_r2 = min(cut_step, cut_more, relax2[fn])
+                else:
+                    if random.random() < 0.5 and relax1[fn] > 1:
+                        move_r1 = random.randint(0, min(cut_more, relax1[fn]))
+                    if random.random() < 0.5 and relax2[fn] > 1:
+                        move_r2 = random.randint(0, min(cut_more, relax2[fn]))
+                assert move_r1 >= 0 and move_r2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
+                if SHRINK_DUMP:
+                    print("%s relax1=%i, relax2=%i => move_r1=%i, move_r2=%i" % (fn, relax1[fn], relax2[fn], move_r1, move_r2))
+                    print("%s cut_more=%i, r1=%i, r2=%i" % (fn, cut_more, r1[fn], r2[fn]))
+                r1[fn] += move_r1
+                relax1[fn] -= move_r1
+                r2[fn] -= move_r2
+                relax2[fn] -= move_r2
+                if SHRINK_DUMP:
+                    print("%s cut_more=%i, r1=%i, r2=%i" % (" "*len(fn), cut_more, r1[fn], r2[fn]))
+                if is_file_supplimentary:
+                    saved_log_supp.extend([move_r1, move_r2])
+                else:
+                    saved_log_main.extend([move_r1, move_r2])
+            for i, fn in enumerate(files):
+                is_file_supplimentary = (i != len(files)-1)
                 orig_t = self.orig_tokens[fn]
                 t = [self.enc.FILE] + self.enc.encode(" " + fn + ":%i" % r1[fn]) + [self.enc.ESCAPE]
                 self.r.extend(t)
@@ -409,8 +429,10 @@ class ContrastDiff:
                 if SHRINK_DUMP:
                     print("pass=%s writing %s %i..%i out of %i" % (pas, fn, r1[fn], r2[fn], len(orig_t)))
                 append_with_tpos_tokens(orig_t[r1[fn]:r2[fn]] + [self.enc.ESCAPE], fn)
-                if pas=="real" and len(tpos_unused) < len(self.enc.tpos):
+                if pas == "real" and len(tpos_unused) < len(self.enc.tpos):
                     raise TooBig("too many position tokens was used")
+                if pas == "estimate" and is_file_supplimentary:
+                    self.tokens_supplimentary_files += r2[fn] - r1[fn]
                 self.fn2cut[fn] = r1[fn]
             self.offset_code_end = len(self.r)
             if not commit_ahead:
@@ -419,7 +441,6 @@ class ContrastDiff:
                 self.m.extend([0]*len(commitmsg_tokens))
             if pas == "estimate":
                 generate_edits()
-                self.tokens_without_edits = len(self.r)
                 self.write_edits()
                 self.tokens_without_shortening = len(self.r)
             else:
