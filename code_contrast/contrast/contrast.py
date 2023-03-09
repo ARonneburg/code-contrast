@@ -344,7 +344,7 @@ class ContrastDiff:
             relax2[fn] = r2[fn] - i2
             assert relax1[fn] >= 0
             assert relax2[fn] >= 0
-        passes = ["est", "real"] if (random_shrink or tight_shrink) else ["real"]
+        passes = ["estimate", "real"] if (random_shrink or tight_shrink) else ["real"]
         for pas in passes:
             self.r = []
             self.m = []
@@ -363,21 +363,24 @@ class ContrastDiff:
             if self.tokens_without_shortening > n_ctx:
                 need_to_cut = self.tokens_without_shortening - n_ctx
             saved_log = []
-            for i in range(3):
-                final_iter = (i==2)
+            cut_step = 1 + need_to_cut // len(files) // 3
+            for i in range(6):  # no heavy lifting in this loop
                 cut_more = need_to_cut - sum(saved_log)
                 if SHRINK_DUMP:
-                    print("shrink iter %i, cut_more=%i" % (i, cut_more))
-                if pas == "est" or cut_more <= 0:
-                    continue
+                    print("shrink iter %i, need_to_cut=%i, cut_more=%i" % (i, need_to_cut, cut_more))
+                if pas == "estimate" or cut_more <= 0:
+                    break
+                # non_important_tokens = 0
                 for fn in files:  # in tight_shrink mode, the least important file is first
+                    # if last:
+                    #     if non_important_tokens
                     move_r1 = 0
                     move_r2 = 0
                     if tight_shrink:
                         if relax1[fn] > relax2[fn]:
-                            move_r1 = min(cut_more//3 if not final_iter else cut_more, relax1[fn])
+                            move_r1 = min(cut_step, relax1[fn])
                         else:
-                            move_r2 = min(cut_more//3 if not final_iter else cut_more, relax2[fn])
+                            move_r2 = min(cut_step, relax2[fn])
                     else:
                         if random.random() < 0.5 and relax1[fn] > 1:
                             move_r1 = random.randint(0, min(cut_more, relax1[fn]))
@@ -386,18 +389,18 @@ class ContrastDiff:
                     assert move_r1 >= 0 and move_r2 >= 0, f"i1={i1} i2={i2} r1={r1} r2={r2}"
                     if SHRINK_DUMP:
                         print("%s relax1=%i, relax2=%i => move_r1=%i, move_r2=%i" % (fn, relax1[fn], relax2[fn], move_r1, move_r2))
-                        print("%s need_to_cut=%i, cut_more=%i, r1=%i, r2=%i" % (fn, need_to_cut, cut_more, r1[fn], r2[fn]))
+                        print("%s cut_more=%i, r1=%i, r2=%i" % (fn, cut_more, r1[fn], r2[fn]))
                     r1[fn] += move_r1
                     relax1[fn] -= move_r1
                     r2[fn] -= move_r2
                     relax2[fn] -= move_r2
-                    if SHRINK_DUMP:
-                        print("%s need_to_cut=%i, cut_more=%i, r1=%i, r2=%i" % (fn, need_to_cut, cut_more, r1[fn], r2[fn]))
                     cut_more = need_to_cut - move_r1 - move_r2 - sum(saved_log)
-                    if cut_more <= 0:
-                        break
+                    if SHRINK_DUMP:
+                        print("%s cut_more=%i, r1=%i, r2=%i" % (" "*len(fn), cut_more, r1[fn], r2[fn]))
                     saved_log.append(move_r1)
                     saved_log.append(move_r2)
+                    if cut_more <= 0:
+                        break
             for fn in files:
                 orig_t = self.orig_tokens[fn]
                 t = [self.enc.FILE] + self.enc.encode(" " + fn + ":%i" % r1[fn]) + [self.enc.ESCAPE]
@@ -414,7 +417,7 @@ class ContrastDiff:
                 self.offset_commitmsg = len(self.r) + 2
                 self.r.extend(commitmsg_tokens)
                 self.m.extend([0]*len(commitmsg_tokens))
-            if pas == "est":
+            if pas == "estimate":
                 generate_edits()
                 self.tokens_without_edits = len(self.r)
                 self.write_edits()
