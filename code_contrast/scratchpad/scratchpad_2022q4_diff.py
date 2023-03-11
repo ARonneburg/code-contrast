@@ -72,7 +72,7 @@ class ScratchpadDiff(ScratchpadBase):
         self.backward_cache_snippet: str = ""
         self.backward_cache_tokens: List[int] = []
         self.backward_cache_cursor: int = 0
-        self.ugly_hack_reattach_next_line = ""
+        self.ugly_hack_reattach_next_line: Optional[str] = None
         self.P1 = 0.35
         self.P2 = 0.20
         self.JP1 = 0.20
@@ -199,7 +199,7 @@ class ScratchpadDiff(ScratchpadBase):
         def finish(reason):
             self.finish_reason = reason
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
-            if reason in ["ins-stoptoken", "ins-stop-lflf"] and self.ugly_hack_reattach_next_line:
+            if reason in ["ins-stoptoken", "ins-stop-lflf"] and self.ugly_hack_reattach_next_line is not None:
                 if len(self.diff_out.edits) == 1:
                     self.debuglog("REATTACH '%s'\n" % (self.ugly_hack_reattach_next_line.replace("\n", "\\n")))
                     self.diff_out.edits[0].toins.extend(self.enc.encode(self.ugly_hack_reattach_next_line) + [self.enc.LF])
@@ -248,18 +248,20 @@ class ScratchpadDiff(ScratchpadBase):
                     if next_slash_n >= 0:
                         self.ugly_hack_reattach_next_line = cut_slash_n[:next_slash_n]
                         self.debuglog("self.ugly_hack_reattach_next_line \"%s\"" % self.ugly_hack_reattach_next_line.replace("\n", "\\n"))
+                    else:
+                        self.ugly_hack_reattach_next_line = None
                 self.odm["orig"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.INFILL]) + cut_slash_n
                 self.odm["dest"][fn] = text[:self.cursor0] + self.enc.decode([self.enc.DUMMY]) + cut_slash_n
-            # elif fn in self.file_poi:
-            #     self.odm["orig"][fn] = text
-            #     self.odm["dest"][fn] = text
+            elif fn in self.file_poi:
+                self.odm["orig"][fn] = text
+                self.odm["dest"][fn] = text
         self.orig_tokens = self.diff.from_odm_dict(
             self.odm,
             n_ctx=(T - self.max_tokens),
             tight_shrink=True,
             exact_cx_lines0=2,
             exact_cx_lines1=0,
-            # external_poi=self.file_poi,
+            external_poi=self.file_poi,
             )
         self.backward_cache_cursor = self.diff.r.index(self.enc.INFILL)
         self.diff.write_edits()
