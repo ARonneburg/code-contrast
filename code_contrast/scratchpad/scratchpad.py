@@ -99,7 +99,10 @@ class ScratchpadBase:
         tokens.copy_(a, non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
-        result = dict()
+        result = dict(
+            selected_tokens=tokens,
+            selected_probs=probs
+        )
         if DEBUGLOG_TOP3:
             result["top3"] = self._log_top3(token=tokens[0], probs=probs[0])
         return result
@@ -139,3 +142,14 @@ class ScratchpadBase:
             text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow"))
             text += " %0.1f%%" % (100 * p)
         return text
+
+    def dump(self) -> bytes:
+        import pickle
+        enc = self.enc
+        self.enc = None
+        d = pickle.dumps(self)
+        self.enc = enc
+        return d
+
+    def set_enc(self, enc):
+        self.enc = enc
