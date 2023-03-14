@@ -1,3 +1,4 @@
+import re
 import torch as th
 
 
@@ -24,3 +25,17 @@ def temperature_top_k_top_p_filtering(logits, temperature=1, top_k=0, top_p=0, f
         indices_to_remove = sorted_indices_to_remove.scatter(0, sorted_indices, sorted_indices_to_remove)
         logits = logits.masked_fill(indices_to_remove, filter_value)
     return logits
+
+
+def simple_stoplist_cut(orig: str, dest: str, head: int, tail: int) -> str:
+    expanded_head = orig.rfind("\n", 0, head) + 1
+    result = []
+    for idx, line in enumerate(dest[expanded_head:-tail].splitlines(keepends=True)):
+        re_patterns = "|".join([
+            r"copyright", r"copyleft", r"(C)", r"©", r"author", r"license",
+            r'[\w.+-]+@[\w-]+\.[\w.-]+',  # email
+        ])
+        for _ in re.finditer(re_patterns, line.lower()):
+            return "".join(result)
+        result.append(line if idx > 0 else line[head-expanded_head:])
+    return "".join(result)
