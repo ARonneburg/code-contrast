@@ -39,7 +39,7 @@ docker run --gpus 0 --name self_hosting -p 8008:8008 --env SERVER_API_TOKEN=<tok
 ```
 
 <details>
-<summary> note </summary>
+<summary> Note </summary>
 
 Next time you can start in with following command:
 ```shell
