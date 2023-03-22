@@ -7,8 +7,8 @@ setup(
     py_modules=["self_hosting", "code_contrast"],
     packages=find_packages(),
     package_data={"code_contrast": ["encoding/*.json"]},
-    version="0.0.2",
+    version="0.0.3",
     install_requires=["numpy", "tokenizers", "fastapi", "hypercorn", "termcolor",
                       "huggingface_hub", "tiktoken", "cdifflib", "cloudpickle",
-                      "dataclasses_json", "torch", "smallcloud"],
+                      "sentencepiece", "dataclasses_json", "torch", "smallcloud"],
 )

@@ -26,6 +26,7 @@ class SMCEncoding:
         self.DUMMY = 0
         self._pos_tokens = []
         self._tokenizer = None
+        self._sentencepiece_tokenizer = None
         self._allowed_special = set()
         self._slash_n_banlist = set()
 
@@ -149,6 +150,16 @@ class SMCEncoding:
                 self._pos_tokens = list(range(50261, 50261 + 1024))
                 assert self.decode([self._pos_tokens[0]]) == "⪦XXXXX⪧"
                 assert self.decode([self._pos_tokens[-1]]) == "⪦VVVVV⪧"
+
+        elif name in ['llama']:
+            from sentencepiece import SentencePieceProcessor
+            filename = Path(__file__).resolve().parent / f"{name}.tokenizer.model"
+            self._sentencepiece_tokenizer = SentencePieceProcessor(str(filename))
+            self.n_vocab = self._sentencepiece_tokenizer.vocab_size()
+            self.bos_id: int = self._sentencepiece_tokenizer.bos_id()
+            self.EOT = self._sentencepiece_tokenizer.eos_id()
+            self.LF = self.encode("\n")
+            self.LFLF = self.encode("\n\n")
         else:
             assert 0
 
@@ -159,6 +170,10 @@ class SMCEncoding:
                 self._token2text[t] = self._tokenizer.decode([t])
             self._replacement_char = "�"
             self._replacement_char_token = self._encode_token(self._replacement_char)
+        elif self._sentencepiece_tokenizer is not None:
+            self._token2text = dict()
+            for t in range(self.n_vocab):
+                self._token2text[t] = self._sentencepiece_tokenizer.decode([t])
         else:
             self._token2bytes = dict()
             for t in range(self.n_vocab):
@@ -182,6 +197,8 @@ class SMCEncoding:
     def _encode_token(self, text: str) -> int:
         if self._tokenizer:
             tokens = self._tokenizer.encode(text).ids
+        elif self._sentencepiece_tokenizer:
+            tokens = self._sentencepiece_tokenizer.encode(text)
         else:
             tokens = self._tik.encode_ordinary(text)
         assert len(tokens) == 1, (text, tokens)
@@ -199,6 +216,8 @@ class SMCEncoding:
     def encode(self, txt: str) -> List[int]:
         if self._tokenizer:
             return self._tokenizer.encode(txt).ids
+        elif self._sentencepiece_tokenizer:
+            return [self.bos_id] + self._sentencepiece_tokenizer.encode(txt)
         else:
             result = []
             cursor = 0
@@ -250,6 +269,8 @@ class SMCEncoding:
                 tokens = tokens[:i]
         if self._tokenizer:
             return self._tokenizer.decode(tokens)
+        elif self._sentencepiece_tokenizer:
+            return self._sentencepiece_tokenizer.decode(tokens.tolist())
         else:
             return self._tik.decode(tokens)
 
