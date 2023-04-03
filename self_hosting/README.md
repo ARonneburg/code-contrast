@@ -1,4 +1,4 @@
-## Inference server
+## Inference Server
 
 This module implements simple server to work with **Refact.ai** plugin.
 Take a look at [Docker instructions](https://refact.smallcloud.ai/docker) for more information.
