@@ -18,7 +18,7 @@ def test_position_tokens(enc: SMCEncoding):
     pos2 = enc._pos_tokens[-1]
     hello = enc.encode("Hello") + [pos1] + enc.encode("world") + [pos2]
     test = enc.decode(hello)
-    assert test == "Hello⪦XXXXX⪧world⪦XVVVV⪧", test
+    assert test == "Hello⪦AAAAA⪧world⪦ADDDD⪧", test
 
 
 def test_rev50000_derivatives(enc_name):
