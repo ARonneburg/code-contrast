@@ -21,5 +21,6 @@ RUN pip install --no-cache-dir git+https://github.com/smallcloudai/code-contrast
 RUN mkdir /workdir
 ENV SERVER_WORKDIR=/workdir
 ENV SERVER_PORT=8008
+EXPOSE $SERVER_PORT
 
 CMD ["python", "-m", "self_hosting.watchdog", "--workdir", "/workdir"]
