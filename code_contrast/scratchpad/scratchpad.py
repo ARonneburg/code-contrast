@@ -2,6 +2,7 @@ import os
 import torch as th
 import termcolor
 import time
+import torch.distributed as dist
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
@@ -73,6 +74,7 @@ class ScratchpadBase:
             logits_intrusion: Optional[List[Dict[int, float]]] = None,
             top_ps: Optional[List[float]] = None,
             top_ks: Optional[List[int]] = None,
+            model_parallel_group: Optional[dist.ProcessGroup] = None,
             **unused
     ):
         if logits_intrusion:
@@ -96,6 +98,10 @@ class ScratchpadBase:
         else:
             probs = (logits[:, [-1]] / (temperatures + 0.01)).squeeze(1).softmax(dim=-1)
             a = th.multinomial(probs, num_samples=1)
+
+        if model_parallel_group is not None:
+            dist.broadcast(a, src=0, group=model_parallel_group)
+
         tokens.copy_(a, non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
