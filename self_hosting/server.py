@@ -47,5 +47,7 @@ if __name__ == "__main__":
     config.accesslog = "-"
     config.keyfile = key_filename
     config.certfile = cert_filename
+    config.keep_alive_timeout = 600
+    config.graceful_timeout = 600
 
     asyncio.run(serve(app=app, config=config))
