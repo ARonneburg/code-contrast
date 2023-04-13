@@ -43,7 +43,7 @@ if __name__ == "__main__":
     key_filename, cert_filename = gen_certificate(args.host, args.workdir)
 
     config = Config()
-    config.bind = f"{args.host}:{args.port}"
+    config.bind = f"0.0.0.0:{args.port}"
     config.accesslog = "-"
     config.keyfile = key_filename
     config.certfile = cert_filename

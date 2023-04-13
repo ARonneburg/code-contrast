@@ -21,7 +21,8 @@ keyUsage = critical, digitalSignature, keyAgreement
 extendedKeyUsage = serverAuth
 subjectAltName = @alt_names
 [alt_names]
-DNS.1=inference.smallcloud.local
+DNS.1=localhost
+DNS.2=inference.smallcloud.local
 IP.1=127.0.0.1
 """
 
