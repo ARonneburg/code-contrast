@@ -14,12 +14,10 @@ from typing import Optional
 class Watchdog:
 
     def __init__(self,
-                 host: str,
                  port: int,
                  workdir: str,
                  token: str,
                  failed_upgrade_quit: bool = False):
-        self._host = host
         self._port = port
         self._workdir = workdir
         self._token = token
@@ -52,7 +50,6 @@ class Watchdog:
                 sys.executable,
                 "-m",
                 "self_hosting.server",
-                f"--host={self._host}",
                 f"--port={self._port}",
                 f"--workdir={self._workdir}",
                 f"--token={self._token}",
@@ -93,7 +90,6 @@ class Watchdog:
 
 if __name__ == "__main__":
     workdir = str(os.environ.get("SERVER_WORKDIR"))
-    host = os.environ.get("SERVER_HOST")
     port = int(os.environ.get("SERVER_PORT"))
     token = os.environ.get("SERVER_API_TOKEN", None)
 
@@ -108,7 +104,6 @@ if __name__ == "__main__":
                         datefmt='%Y-%m-%d %H:%M:%S')
 
     watchdog = Watchdog(
-        host=host,
         port=port,
         workdir=workdir,
         token=token,

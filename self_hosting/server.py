@@ -40,10 +40,10 @@ if __name__ == "__main__":
     app.include_router(CompletionRouter(args.token, inference))
     app.include_router(ContrastRouter(args.token, inference))
 
-    key_filename, cert_filename = gen_certificate(args.host, args.workdir)
+    key_filename, cert_filename = gen_certificate(args.workdir)
 
     config = Config()
-    config.bind = f"0.0.0.0:{args.port}"
+    config.bind = f"{args.host}:{args.port}"
     config.accesslog = "-"
     config.keyfile = key_filename
     config.certfile = cert_filename

@@ -23,11 +23,10 @@ subjectAltName = @alt_names
 [alt_names]
 DNS.1=localhost
 DNS.2=inference.smallcloud.local
-IP.1=127.0.0.1
 """
 
 
-def gen_certificate(hostname: str, workdir: Path) -> Tuple[Path, Path]:
+def gen_certificate(workdir: Path) -> Tuple[Path, Path]:
     cert_dir = workdir / "cert"
     cert_dir.mkdir(parents=False, exist_ok=True)
 
@@ -40,8 +39,21 @@ def gen_certificate(hostname: str, workdir: Path) -> Tuple[Path, Path]:
 
     cert_filename = cert_dir / "server.cert"
     if not cert_filename.exists():
+        alt_names_ips = {"127.0.0.1", "0.0.0.0"}
+        s = subprocess.Popen(
+            "hostname -I",
+            stdout=subprocess.PIPE,
+            shell=True)
+        stdout = s.communicate()[0]
+        if stdout is not None:
+            alt_names_ips.update(stdout.decode("utf8").split())
+
         openssl_config_filename = cert_dir / "openssl.cfg"
-        openssl_config_filename.write_text(f"{openssl_config}IP.2={hostname}\n")
+        alt_names_suffix = "\n".join([
+            f"IP.{idx + 1}={ip}"
+            for idx, ip in enumerate(alt_names_ips)
+        ])
+        openssl_config_filename.write_text(f"{openssl_config}{alt_names_suffix}\n")
 
         s = subprocess.Popen(
             "openssl req -new -x509 -nodes -sha256 -days 15330 "
