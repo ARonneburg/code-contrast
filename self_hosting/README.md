@@ -10,7 +10,6 @@
 <table align="center">
 <tr>
 <th><img src="https://plugins.jetbrains.com/files/20647/screenshot_277b57c5-2104-4ca8-9efc-1a63b8cb330f" align="center"/></th>
-<th><img src="https://plugins.jetbrains.com/files/20647/screenshot_a57c91d1-b841-495e-9e81-9af2129bef24" align="center"/></th>
 </tr>
 </table>
 
@@ -22,11 +21,6 @@
 * Self-hosted server running with Docker
 * Completion and AI Toolbox
 * Privacy settings for projects or even single files
-
-TODO
-<p align="center">
-<img src="https://www.refact.ai/images/scheme.svg" style="background-color:white;padding:20px;">
-</p>
 
 Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
 [Twitter](https://twitter.com/refact_ai) to get the latest updates.
@@ -40,7 +34,7 @@ Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
 ## Prerequisities
 - Install plugin for your IDE: [JetBrains](https://plugins.jetbrains.com/plugin/20647-refact-ai) or
   [VSCode](https://marketplace.visualstudio.com/items?itemName=smallcloud.codify)
-- TODO: Login and choose SELF-HOSTED plan for your account
+- Login or sign in to your account
 - Large Language Models require a lot of computing resources and memory.
   We strongly recommend use this server with **Nvidia GPU with at least 4Gb VRAM**.
   Another option is to use it with CPU, but it's quite slow and unusable in practice yet.
@@ -50,8 +44,8 @@ Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
 Recommended way to run server is pre-builded Docker image.
 
 ### Docker
-Install [Docker with NVidia GPU support](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker). Then get **API Key** from refact.ai [account](https://codify.smallcloud.ai/account)
-page or alternatively from plugin settings.
+Install [Docker with NVidia GPU support](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker).
+Then get **API Key** from refact.ai [account](https://codify.smallcloud.ai/account) page or alternatively from plugin settings.
 
 <details><summary>Docker tips & tricks</summary>
 
@@ -82,7 +76,7 @@ download the weights again.
 
 Run docker container with following command:
 ```commandline
-docker run --gpus 0 --name refact_self_hosting -p 8008:8008 --env SERVER_API_TOKEN={API Key} smallcloud/self_hosting
+docker run --gpus 0 --name refact_self_hosting --net host --env SERVER_API_TOKEN={API Key} smallcloud/self_hosting
 ```
 Next time you can start it with following command:
 ```commandline
@@ -115,6 +109,16 @@ Settings > Tools > Refact.ai > Advanced > Inference URL
 Extensions > Refact.ai Assistant > Settings > Infurl
 </details>
 
+If your server runs on remote host and you have troubles with direct server ip usage 
+in inference url you should add server ip to hosts: 
+```commandline
+<server ip>  inference.smallcloud.local
+```
+and set up this inference url in plugin:
+```commandline
+https://inference.smallcloud.local:8008
+```
+
 Make sure your server started with same API Key.
 
 Now it should work, just try to write some code! If it doesn't, please report your experience to
@@ -122,4 +126,7 @@ Now it should work, just try to write some code! If it doesn't, please report yo
 
 ## Contributing
 
-TODO
+We are open for contributing. If you have any ideas and ready to implement it, just:
+- make a [fork](https://github.com/smallcloudai/code-contrast/fork)
+- make your changes, commit to your fork
+- and open a [PR](https://github.com/smallcloudai/code-contrast/fork)
