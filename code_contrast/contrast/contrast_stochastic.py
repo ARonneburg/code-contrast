@@ -70,51 +70,39 @@ def ops_remove_short_equals(ops, upto):
 
 def ops_stochastic_expand(ops, *, left_prob, right_prob, disable_insert, exact_cx_lines0=-1, exact_cx_lines1=-1):
     result = copy.deepcopy(ops)
-    countdown = 10
-    while 1:
-        # move left boundary
-        for n in range(1, len(result)-1):
-            lop, li1, li2, lj1, lj2 = result[n-1]
-            mop, mi1, mi2, mj1, mj2 = result[n]
-            if lop == "equal" and mop != "equal" and random.random() < left_prob:
-                assert li2 == mi1
-                if exact_cx_lines0 >= 0:
-                    move = exact_cx_lines0
+    # move left boundary
+    for n in range(1, len(result)-1):
+        lop, li1, li2, lj1, lj2 = result[n-1]
+        mop, mi1, mi2, mj1, mj2 = result[n]
+        if lop == "equal" and mop != "equal" and random.random() < left_prob:
+            assert li2 == mi1
+            if exact_cx_lines0 >= 0:
+                move = exact_cx_lines0
+            else:
+                move = np.random.poisson(lam=2)
+                move = min(li2 - li1 - 1, move)
+            if move < li2 - li1 and move > 0:
+                result[n-1] = (lop, li1, li2 - move, lj1, lj2 - move)
+                result[n] = (mop, mi1 - move, mi2, mj1 - move, mj2)
+    # move right boundary
+    for n in range(0, len(result)-1):
+        mop, mi1, mi2, mj1, mj2 = result[n]
+        rop, ri1, ri2, rj1, rj2 = result[n+1]
+        # if mop != "equal" and rop == "equal" and (random.random() < right_prob or (mi1==mi2 and disable_insert)):
+        if mop != "equal" and rop == "equal" and random.random() < right_prob:
+            assert ri1 == mi2
+            if exact_cx_lines1 >= 0:
+                move = exact_cx_lines1
+            else:
+                # if disable_insert, add at least one line => insert becomes replace
+                move = np.random.poisson(lam=2)
+                if disable_insert:
+                    move = max(1, move)
                 else:
-                    move = np.random.poisson(lam=2)
-                if move < li2 - li1 and move > 0:
-                    result[n-1] = (lop, li1, li2 - move, lj1, lj2 - move)
-                    result[n] = (mop, mi1 - move, mi2, mj1 - move, mj2)
-        # move right boundary
-        for n in range(0, len(result)-1):
-            mop, mi1, mi2, mj1, mj2 = result[n]
-            rop, ri1, ri2, rj1, rj2 = result[n+1]
-            # if mop != "equal" and rop == "equal" and (random.random() < right_prob or (mi1==mi2 and disable_insert)):
-            if mop != "equal" and rop == "equal" and random.random() < right_prob:
-                assert ri1 == mi2
-                if exact_cx_lines1 >= 0:
-                    move = exact_cx_lines1
-                else:
-                    # if disable_insert, add at least one line => insert becomes replace
-                    move = np.random.poisson(lam=2)
-                    if disable_insert:
-                        move = max(1, move)
-                if move < ri2 - ri1 and move > 0:
-                    result[n] = (mop, mi1, mi2 + move, mj1, mj2 + move)
-                    result[n+1] = (rop, ri1 + move, ri2, rj1 + move, rj2)
-        insert = False
-        for op, i1, i2, j1, j2 in result:
-            insert |= i1 == i2
-        #     print(op, i1, i2, j1, j2)
-        # print("insert", insert)
-        # if not disable_insert:
-            break
-        if not insert:
-            break
-        countdown -= 1
-        if countdown == 0:
-            # import IPython; IPython.embed(); quit()
-            break
+                    move = min(ri2 - ri1 - 1, move)
+            if move < ri2 - ri1 and move > 0:
+                result[n] = (mop, mi1, mi2 + move, mj1, mj2 + move)
+                result[n+1] = (rop, ri1 + move, ri2, rj1 + move, rj2)
     return result
 
 

@@ -11,7 +11,7 @@ from cdifflib import CSequenceMatcher
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
 from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
-from code_contrast.print_utils import editclass_print
+from code_contrast.print_utils import editclass_print, hlprint
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -116,8 +116,8 @@ class Contrast2023q2:
             chunks.extend(self.run_diff(f, [(x + "\n") for x in odm["dest"][fn].splitlines()], exact_cx_lines0, exact_cx_lines1))
         random.shuffle(chunks)
         self.plan.extend(chunks)
-        import IPython; IPython.embed(); quit()
         self.pack_context(n_ctx)
+        import IPython; IPython.embed(); quit()
 
     def run_diff(self, f: _File, dest_text: List[str], exact_cx_lines0: int, exact_cx_lines1: int):
         # an important side effect of this function is f.file_ranges
@@ -132,19 +132,52 @@ class Contrast2023q2:
         lines_diff = ops_stochastic_expand(lines_diff,
             left_prob=1, right_prob=1,
             exact_cx_lines0=exact_cx_lines0, exact_cx_lines1=exact_cx_lines1,
-            disable_insert=True)
+            disable_insert=True   # we don't like pure inserts, because without deleted lines the position to delete is only defined by the line number, therefore model arithmetic
+        )
         lines_diff = ops_remove_short_equals(lines_diff, upto=2)
         for op, i0, i1, j0, j1 in lines_diff:
             if op == "equal":
                 continue
-            assert op in ["replace", "joined"], op
+            assert op in ["replace", "joined", "insert"], op
             c =  _Chunk("CHUNK", "FULL", f, dest_text, i0, i1, j0, j1, -1, -1)
             chunks.append(c)
         return chunks
 
     def pack_context(self, n_ctx):
-        # fills self.r self.m
-        pass
+        self.r, self.m = [], []
+        plan_tokens: List[List[int]] = [list() for _ in range(len(self.plan))]
+        def dump_MSG(i, msg: _Msg):
+            plan_tokens[i] = [self.enc.ESCAPE] + self.enc.encode(msg.msg_role + " " + msg.msg_text) + [self.enc.DIAMOND]
+        def dump_FILE(i, file: _File):
+            t = [self.enc.ESCAPE] + self.enc.encode("FILE " + file.file_fn.replace("\n", "\\n") + "\n")
+            line_countdown = 0
+            for l in range(len(file.file_text)):
+                if line_countdown == 0:
+                    t.extend([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (l + file.formal_line0)))
+                    line_countdown = 15
+                t.extend(self.enc.encode(file.file_text[l]))
+                line_countdown -= 1
+            t.append(self.enc.DIAMOND)
+            plan_tokens[i] = t
+        def dump_CHUNK(i, chunk: _Chunk):
+            t = [self.enc.ESCAPE] + self.enc.encode("CHUNK\n")
+            for line in range(chunk.i0, chunk.i1):
+                t.extend(self.enc.encode(chunk.orig_file.file_text[line]))
+            t.extend([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % chunk.formal_line))
+            for j in range(chunk.j0, chunk.j1):
+                t.extend(self.enc.encode(chunk.dest_text[j]))
+            t.append(self.enc.DIAMOND)
+            plan_tokens[i] = t
+        el_switch = {"MSG": dump_MSG, "FILE": dump_FILE, "CHUNK": dump_CHUNK}
+        for i, p in enumerate(self.plan):
+            el_switch[p.el_type](i, p)
+        # join list of lists into one lists
+        for lst in plan_tokens:
+            self.r.extend(lst)
+            self.m.extend([1]*len(lst))
+
+    def dump_r(self):
+        return hlprint(enc, self.r)
 
     def __repr__(self):
         ret = ""
