@@ -116,7 +116,7 @@ class Contrast2023q2:
             chunks.extend(self.run_diff(f, [(x + "\n") for x in odm["dest"][fn].splitlines()], exact_cx_lines0, exact_cx_lines1))
         random.shuffle(chunks)
         self.plan.extend(chunks)
-        self.pack_context(n_ctx)
+        self.pack_context(n_ctx, 2)
         import IPython; IPython.embed(); quit()
 
     def run_diff(self, f: _File, dest_text: List[str], exact_cx_lines0: int, exact_cx_lines1: int):
@@ -143,41 +143,61 @@ class Contrast2023q2:
             chunks.append(c)
         return chunks
 
-    def pack_context(self, n_ctx):
+    def pack_context(self, n_ctx: int, mask_from_plan_n: int):
         self.r, self.m = [], []
-        plan_tokens: List[List[int]] = [list() for _ in range(len(self.plan))]
+        plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
+        plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
         def dump_MSG(i, msg: _Msg):
-            plan_tokens[i] = [self.enc.ESCAPE] + self.enc.encode(msg.msg_role + " " + msg.msg_text) + [self.enc.DIAMOND]
+            toks = self.enc.encode(msg.msg_role + " " + msg.msg_text)
+            plan_toks[i].extend(toks)
+            plan_mask[i].extend([1]*len(toks))
         def dump_FILE(i, file: _File):
-            t = [self.enc.ESCAPE] + self.enc.encode("FILE " + file.file_fn.replace("\n", "\\n") + "\n")
+            t = self.enc.encode("FILE " + file.file_fn.replace("\n", "\\n") + "\n")
+            m = [1]*len(t)
             line_countdown = 0
             for l in range(len(file.file_text)):
                 if line_countdown == 0:
-                    t.extend([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (l + file.formal_line0)))
+                    line_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (l + file.formal_line0))
+                    t.extend(line_t)
+                    m.extend([1 if l > 0 else 0]*len(line_t))
                     line_countdown = 15
-                t.extend(self.enc.encode(file.file_text[l]))
+                line_t = self.enc.encode(file.file_text[l])
+                t.extend(line_t)
+                m.extend([1]*len(line_t))
                 line_countdown -= 1
-            t.append(self.enc.DIAMOND)
-            plan_tokens[i] = t
+            line_t = [self.enc.ESCAPE] + self.enc.encode("/FILE\n")
+            t.extend(line_t)
+            m.extend([1]*len(line_t))
+            plan_toks[i] = t
+            plan_mask[i] = m
         def dump_CHUNK(i, chunk: _Chunk):
-            t = [self.enc.ESCAPE] + self.enc.encode("CHUNK\n")
+            t = self.enc.encode("CHUNK\n")
             for line in range(chunk.i0, chunk.i1):
-                t.extend(self.enc.encode(chunk.orig_file.file_text[line]))
+                line_t = self.enc.encode(chunk.orig_file.file_text[line])
+                t.extend(line_t)
             t.extend([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % chunk.formal_line))
             for j in range(chunk.j0, chunk.j1):
                 t.extend(self.enc.encode(chunk.dest_text[j]))
-            t.append(self.enc.DIAMOND)
-            plan_tokens[i] = t
+            # t.extend([self.enc.ESCAPE] + self.enc.encode("/CHUNK\n"))
+            m = [1]*len(t)
+            plan_toks[i] = t
+            plan_mask[i] = m
         el_switch = {"MSG": dump_MSG, "FILE": dump_FILE, "CHUNK": dump_CHUNK}
         for i, p in enumerate(self.plan):
             el_switch[p.el_type](i, p)
-        # join list of lists into one lists
-        for lst in plan_tokens:
+            assert len(plan_toks[i]) == len(plan_mask[i]), p.el_type
+        for i, (lst, msk) in enumerate(zip(plan_toks, plan_mask)):
+            self.r.append(self.enc.ESCAPE)
+            self.m.append(1 if i >= mask_from_plan_n else 0)
             self.r.extend(lst)
-            self.m.extend([1]*len(lst))
+            self.m.extend(msk if i >= mask_from_plan_n else [0]*len(msk))
+        self.r.append(self.enc.ESCAPE)
+        self.r.append(self.enc.EOT)
+        self.m.append(1)
+        self.m.append(1)
 
     def dump_r(self):
-        return hlprint(enc, self.r)
+        return hlprint(enc, self.r, self.m)
 
     def __repr__(self):
         ret = ""
