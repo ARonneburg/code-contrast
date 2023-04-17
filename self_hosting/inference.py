@@ -287,7 +287,6 @@ class Inference:
             for choice in result["choices"]:
                 files_head_mid_tail = dict()
                 generated = choice.pop("files")
-                assert scratchpad.sources.keys() == generated.keys()
                 for filename in generated.keys():
                     orig = scratchpad.sources[filename]
                     dest = generated[filename]
