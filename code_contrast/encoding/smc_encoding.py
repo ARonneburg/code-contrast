@@ -157,6 +157,7 @@ class SMCEncoding:
             self._sentencepiece_tokenizer = SentencePieceProcessor(str(filename))
             self.n_vocab = self._sentencepiece_tokenizer.vocab_size()
             self.bos_id: int = self._sentencepiece_tokenizer.bos_id()
+            self.DIAMOND = self._sentencepiece_tokenizer.unk_id()
             self.EOT = self._sentencepiece_tokenizer.eos_id()
             self.LF = self.encode("\n")
             self.LFLF = self.encode("\n\n")
