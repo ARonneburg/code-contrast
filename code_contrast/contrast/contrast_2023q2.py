@@ -20,23 +20,33 @@ from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
 element_types = ["FILE", "USER", "ASSISTANT", "CHUNK", "TOOL", "OUTPUT"]
-element_stretch = ["FULL", "AUX", "RAND", "EXPAND"]
+# element_stretch = ["FULL", "AUX", "RAND", "EXPAND"]
 
 
 @dataclass
 class _PlanElement:
     el_type: str
-    el_stretch: str
+    # el_stretch: str
 
 
 @dataclass
 class _File(_PlanElement):
     file_fn: str
     file_text: List[str]
-    file_ranges: List[Tuple[int, int]] = field(default_factory=lambda: [])     # line numbers
+    file_ranges: List[Tuple[int, int, int]] = field(default_factory=lambda: [])     # (priority, line0, line1)
     file_line0: int = -1    # context will have line0..line1 present, indexes in file_text[]
     file_line1: int = -1
     formal_line0: int = -1  # §LINE1337 first line
+
+
+@dataclass
+class _FileExpandingState:
+    # toks_count: int = 0
+    headers_count: int = 0
+    toks_count_typical_header: int = 0
+    file_text_toks: List[Optional[List[int]]] = field(default_factory=lambda: [])
+    ranges_need_header: List[bool] = field(default_factory=lambda: [])
+    ranges_expanding: List[Tuple[int, int, int, bool, bool]] = field(default_factory=lambda: [])
 
 
 @dataclass
@@ -68,25 +78,26 @@ class Contrast2023q2:
         self.plan: List[_PlanElement] = list()
         self.cx_lines0 = 2
 
-    def add_file(self, stretch: str, file_fn: str, file_text: List[str]):
-        f = _File("FILE", stretch, file_fn, file_text)
+    def add_file(self, file_fn: str, file_text: List[str]):
+        f = _File("FILE", file_fn, file_text)
         self.plan.append(f)
         return f
 
     def add_msg(self, msg_role, msg_text):
-        m = _Msg("MSG", "FULL", msg_role, msg_text)
+        m = _Msg("MSG", msg_role, msg_text)
         self.plan.append(m)
         return m
 
     # def add_chunk(self, orig_file, dest_text):
-    #     c = _Chunk("CHUNK", "FULL", orig_file, dest_text, [], [], -1, -1)
+    #     c = _Chunk("CHUNK", orig_file, dest_text, [], [], -1, -1)
     #     self.plan.append(c)
     #     return c
 
     def from_odm_dict(
         self,
         odm: Dict[str, Any],
-        n_ctx: int,
+        limit_ctx_n: int,
+        limit_aux_n: int,
         # random_shrink = True,
         tight_shrink = False,
         exact_cx_lines0 = -1,
@@ -104,19 +115,20 @@ class Contrast2023q2:
         files = []
         chunks = []
         for fni, fn in enumerate(fns):
-            stretch = "RANDOM"
-            if tight_shrink:
-                stretch = "AUX" if (fni != len(fns) - 1) else "EXPAND"
-            f = self.add_file(stretch, fn, [(x + "\n") for x in odm["orig"][fn].splitlines()])
+            main_file = (fni == len(fns) - 1)
+            # stretch = "RANDOM"
+            # if tight_shrink:
+            #     stretch = "EXPAND" if main_file else "AUX"
+            f = self.add_file(fn, [(x + "\n") for x in odm["orig"][fn].splitlines()])
             if external_poi_ranges and fn in external_poi_ranges:
-                f.file_ranges.extend(external_poi_ranges[fn])
+                f.file_ranges.append((1, *external_poi_ranges[fn]))   # 1 means AUX
             files.append(f)
         self.add_msg("USER", odm["commitmsg"])
         for fn, f in zip(fns, files):
             chunks.extend(self.run_diff(f, [(x + "\n") for x in odm["dest"][fn].splitlines()], exact_cx_lines0, exact_cx_lines1))
         random.shuffle(chunks)
         self.plan.extend(chunks)
-        self.pack_context(n_ctx, 2)
+        self.pack_context(2, limit_ctx_n, limit_aux_n)
         import IPython; IPython.embed(); quit()
 
     def run_diff(self, f: _File, dest_text: List[str], exact_cx_lines0: int, exact_cx_lines1: int):
@@ -139,37 +151,130 @@ class Contrast2023q2:
             if op == "equal":
                 continue
             assert op in ["replace", "joined", "insert"], op
-            c =  _Chunk("CHUNK", "FULL", f, dest_text, i0, i1, j0, j1, -1, -1)
+            c =  _Chunk("CHUNK", f, dest_text, i0, i1, j0, j1)
             chunks.append(c)
+            f.file_ranges.append((0, i0, i1+1))     # 0 means EXPAND
         return chunks
 
-    def pack_context(self, n_ctx: int, mask_from_plan_n: int):
+    def assign_random_line0_to_files(self):
+        MINLINE = 1000
+        MAXLINE = 9000
+        for f in self.plan:
+            if f.el_type == "FILE":
+                f.formal_line0 = random.randint(MINLINE, MAXLINE)
+
+    def pack_context(self, mask_from_plan_n: int, limit_ctx_n: int, limit_aux_n: int):
+        filled_ctx_n = 0
+        filled_aux_n = 0
+        self.assign_random_line0_to_files()
+        LINE_NUMBER_EACH = 15   # lines
         self.r, self.m = [], []
         plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
+        expanding_files: List[_FileExpandingState] = [_FileExpandingState() for _ in range(len(self.plan))]
         plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
+
         def dump_MSG(i, msg: _Msg):
             toks = self.enc.encode(msg.msg_role + " " + msg.msg_text)
             plan_toks[i].extend(toks)
             plan_mask[i].extend([1]*len(toks))
-        def dump_FILE(i, file: _File):
+
+        def _file_line2toks_helper(file: _File, e: _FileExpandingState, l: int, aux: bool):
+            print("line2toks", l, len(file.file_text))
+            nonlocal filled_ctx_n, filled_aux_n
+            if l < 0 or l >= len(file.file_text):
+                return False
+            if e.file_text_toks[l] is not None:
+                return False
+            t = self.enc.encode(file.file_text[l])
+            if aux:
+                if filled_aux_n + len(t) < limit_aux_n:
+                    filled_aux_n += len(t)
+                    e.file_text_toks[l] = t
+                    return True
+            else:
+                if filled_ctx_n + len(t) < limit_ctx_n + (limit_aux_n - filled_aux_n):
+                    filled_ctx_n += len(t)
+                    e.file_text_toks[l] = t
+                    return True
+            return False
+
+        def init_FILE(i, file: _File):
+            e = expanding_files[i]
+            e.headers_count = 0
             t = self.enc.encode("FILE " + file.file_fn.replace("\n", "\\n") + "\n")
-            m = [1]*len(t)
-            line_countdown = 0
-            for l in range(len(file.file_text)):
-                if line_countdown == 0:
-                    line_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (l + file.formal_line0))
+            plan_toks[i].extend(t)
+            plan_mask[i].extend([1]*len(t))
+            # Each range has a header, until it bumps into another range above when exanding
+            e.toks_count_typical_header = len([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % 1234))
+            e.file_text_toks = [None] * len(file.file_text)
+            for ri, (aux, r0, r1) in enumerate(file.file_ranges):
+                e.ranges_need_header.append(True)
+                e.headers_count += 1
+                r0 = max(0, min(r0, len(file.file_text) - 1))
+                r1 = max(0, min(r1, len(file.file_text) - 1))
+                e.ranges_expanding.append((aux, r0, r1, True, True))
+                for line in range(r0, r1 + 1):
+                    _file_line2toks_helper(file, e, line, aux=aux)
+            # e.toks_count = len(t) + e.toks_count_typical_header * e.headers_count
+
+        def expand_FILE(i, file: _File) -> bool:
+            nonlocal filled_ctx_n, filled_aux_n
+            e = expanding_files[i]
+            anything_works = False
+            for ri in range(len(e.ranges_expanding)):
+                aux, r0, r1, works0, works1 = e.ranges_expanding[ri]
+                print("range%d: %d, %d, %d, %d, aux=%d" % (ri, r0, r1, works0, works1, aux))
+                if works0:
+                    success = _file_line2toks_helper(file, e, r0, aux)
+                    if not success and r0 > 0:
+                        # We bumped into another expanding range
+                        e.ranges_need_header[ri] = False
+                        e.headers_count -= 1
+                        if aux:
+                            filled_aux_n -= e.toks_count_typical_header
+                        else:
+                            filled_ctx_n -= e.toks_count_typical_header
+                    if success and r0 == 0:
+                        works0 = False
+                    elif success:
+                        r0 -= 1
+                    else:
+                        works0 = False
+                if works1:
+                    success = _file_line2toks_helper(file, e, r1 + 1, aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
+                    if success and r1 + 1 >= len(file.file_text) - 1:
+                        works1 = False
+                        r1 = len(file.file_text) - 1
+                    elif success:
+                        r1 += 1
+                        assert r1 < len(file.file_text), ri
+                    else:
+                        works1 = False
+                e.ranges_expanding[ri] = (aux, r0, r1, works0, works1)
+                anything_works |= works0 or works1
+            return anything_works
+
+        def finish_FILE(i, file: _File):
+            e = expanding_files[i]
+            t, m = [], []
+            assert len(file.file_text) == len(e.file_text_toks)
+            for aux, r0, r1, works0, works1 in e.ranges_expanding:
+                assert r1 < len(file.file_text), e.ranges_expanding
+                assert works0 == False and works1 == False
+                line_countdown = 0
+                for line in range(r0, r1):
+                    if line_countdown == 0:
+                        line_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (r0 + file.formal_line0))
+                        t.extend(line_t)
+                        m.extend([1 if line > r0 else 0]*len(line_t))
+                        line_countdown = 15
+                    line_t = e.file_text_toks[line]
+                    assert line_t is not None, line
                     t.extend(line_t)
-                    m.extend([1 if l > 0 else 0]*len(line_t))
-                    line_countdown = 15
-                line_t = self.enc.encode(file.file_text[l])
-                t.extend(line_t)
-                m.extend([1]*len(line_t))
-                line_countdown -= 1
-            line_t = [self.enc.ESCAPE] + self.enc.encode("/FILE\n")
-            t.extend(line_t)
-            m.extend([1]*len(line_t))
-            plan_toks[i] = t
-            plan_mask[i] = m
+                    m.extend([1]*len(line_t))
+            plan_toks[i].extend(t)
+            plan_mask[i].extend(m)
+
         def dump_CHUNK(i, chunk: _Chunk):
             t = self.enc.encode("CHUNK\n")
             for line in range(chunk.i0, chunk.i1):
@@ -182,19 +287,36 @@ class Contrast2023q2:
             m = [1]*len(t)
             plan_toks[i] = t
             plan_mask[i] = m
-        el_switch = {"MSG": dump_MSG, "FILE": dump_FILE, "CHUNK": dump_CHUNK}
+        switch_init = {"MSG": dump_MSG, "FILE": init_FILE, "CHUNK": dump_CHUNK}
+        switch_expand = {"FILE": expand_FILE}
+        switch_finish = {"FILE": finish_FILE}
         for i, p in enumerate(self.plan):
-            el_switch[p.el_type](i, p)
-            assert len(plan_toks[i]) == len(plan_mask[i]), p.el_type
+            switch_init[p.el_type](i, p)
+            filled_ctx_n += len(plan_toks[i])
+        print("after init, filled_ctx_n %d" % (filled_ctx_n,))
+        while 1:
+            any_still_expanding = False
+            for i, p in enumerate(self.plan):
+                if p.el_type not in switch_expand:
+                    continue
+                any_still_expanding |= switch_expand[p.el_type](i, p)
+            if not any_still_expanding:
+                break
+        for i, p in enumerate(self.plan):
+            if p.el_type not in switch_finish:
+                continue
+            switch_finish[p.el_type](i, p)
         for i, (lst, msk) in enumerate(zip(plan_toks, plan_mask)):
             self.r.append(self.enc.ESCAPE)
             self.m.append(1 if i >= mask_from_plan_n else 0)
             self.r.extend(lst)
             self.m.extend(msk if i >= mask_from_plan_n else [0]*len(msk))
-        self.r.append(self.enc.ESCAPE)
-        self.r.append(self.enc.EOT)
-        self.m.append(1)
-        self.m.append(1)
+        self.r.extend([self.enc.ESCAPE, self.enc.EOT])
+        self.m.extend([1, 1])
+        assert len(self.r) == len(self.m)
+        print("filled_ctx_n %d < limit %d" % (filled_ctx_n, limit_ctx_n))
+        print("filled_aux_n %d < limit %d" % (filled_aux_n, limit_aux_n))
+        print("filled_ctx_n + filled_aux_n = %d" % (filled_ctx_n + filled_aux_n))
 
     def dump_r(self):
         return hlprint(enc, self.r, self.m)
@@ -283,11 +405,11 @@ example_odm = {
 
 
 
-def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, tight_shrink: bool=False):
+def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=2048, limit_aux_n=512, tight_shrink: bool=False):
     import time
     t0 = time.time()
     test1 = Contrast2023q2(enc)
-    full_orig_tokens = test1.from_odm_dict(odm, n_ctx,
+    full_orig_tokens = test1.from_odm_dict(odm, limit_ctx_n, limit_aux_n,
         tight_shrink=tight_shrink,
     )
     quit()
@@ -346,5 +468,5 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, n_ctx: int, 
 
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
-    self_test(enc, example_odm, verbose=True, n_ctx=512)
+    self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 
