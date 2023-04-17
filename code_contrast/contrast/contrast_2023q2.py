@@ -30,23 +30,25 @@ class _PlanElement:
 
 
 @dataclass
-class _File(_PlanElement):
-    file_fn: str
-    file_text: List[str]
-    file_ranges: List[Tuple[int, int, int]] = field(default_factory=lambda: [])     # (priority, line0, line1)
-    file_line0: int = -1    # context will have line0..line1 present, indexes in file_text[]
-    file_line1: int = -1
-    formal_line0: int = -1  # §LINE1337 first line
+class _FileExpandingRange:
+    aux: int
+    line0: int
+    line1: int
+    need_header: bool = True
+    works0: bool = True
+    works1: bool = True
 
 
 @dataclass
-class _FileExpandingState:
-    # toks_count: int = 0
-    headers_count: int = 0
-    toks_count_typical_header: int = 0
+class _File(_PlanElement):
+    file_fn: str
+    file_text: List[str]
     file_text_toks: List[Optional[List[int]]] = field(default_factory=lambda: [])
-    ranges_need_header: List[bool] = field(default_factory=lambda: [])
-    ranges_expanding: List[Tuple[int, int, int, bool, bool]] = field(default_factory=lambda: [])
+    formal_line0: int = -1  # §LINE1337 first line
+    expanding_ranges: List[_FileExpandingRange] = field(default_factory=lambda: [])
+    check_ctx_n: int = 0
+    check_aux_n: int = 0
+    footer_toks: List[int] = field(default_factory=lambda: [])
 
 
 @dataclass
@@ -121,7 +123,13 @@ class Contrast2023q2:
             #     stretch = "EXPAND" if main_file else "AUX"
             f = self.add_file(fn, [(x + "\n") for x in odm["orig"][fn].splitlines()])
             if external_poi_ranges and fn in external_poi_ranges:
-                f.file_ranges.append((1, *external_poi_ranges[fn]))   # 1 means AUX
+                line0 = max(0, min(external_poi_ranges[fn][0], len(f.file_text) - 1))
+                line1 = max(0, min(external_poi_ranges[fn][1], len(f.file_text) - 1))
+                f.expanding_ranges.append(_FileExpandingRange(
+                    aux=(1 if (tight_shrink and not main_file) else 0),
+                    line0=line0,
+                    line1=line1,
+                ))
             files.append(f)
         self.add_msg("USER", odm["commitmsg"])
         for fn, f in zip(fns, files):
@@ -153,7 +161,11 @@ class Contrast2023q2:
             assert op in ["replace", "joined", "insert"], op
             c =  _Chunk("CHUNK", f, dest_text, i0, i1, j0, j1)
             chunks.append(c)
-            f.file_ranges.append((0, i0, i1+1))     # 0 means EXPAND
+            f.expanding_ranges.append(_FileExpandingRange(
+                    aux=0,
+                    line0=i0,
+                    line1=i1-1,
+                ))
         return chunks
 
     def assign_random_line0_to_files(self):
@@ -170,7 +182,6 @@ class Contrast2023q2:
         LINE_NUMBER_EACH = 15   # lines
         self.r, self.m = [], []
         plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
-        expanding_files: List[_FileExpandingState] = [_FileExpandingState() for _ in range(len(self.plan))]
         plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
 
         def dump_MSG(i, msg: _Msg):
@@ -178,102 +189,98 @@ class Contrast2023q2:
             plan_toks[i].extend(toks)
             plan_mask[i].extend([1]*len(toks))
 
-        def _file_line2toks_helper(file: _File, e: _FileExpandingState, l: int, aux: bool):
+        def _file_line2toks_helper(file: _File, er: _FileExpandingRange, l: int, aux: bool):
             print("line2toks", l, len(file.file_text))
             nonlocal filled_ctx_n, filled_aux_n
             if l < 0 or l >= len(file.file_text):
                 return False
-            if e.file_text_toks[l] is not None:
+            if file.file_text_toks[l] is not None:
                 return False
             t = self.enc.encode(file.file_text[l])
             if aux:
                 if filled_aux_n + len(t) < limit_aux_n:
                     filled_aux_n += len(t)
-                    e.file_text_toks[l] = t
+                    file.check_aux_n += len(t)
+                    file.file_text_toks[l] = t
                     return True
             else:
                 if filled_ctx_n + len(t) < limit_ctx_n + (limit_aux_n - filled_aux_n):
                     filled_ctx_n += len(t)
-                    e.file_text_toks[l] = t
+                    file.check_ctx_n += len(t)
+                    file.file_text_toks[l] = t
                     return True
             return False
 
+        toks_count_typical_header = len([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % 1234))
+
         def init_FILE(i, file: _File):
-            e = expanding_files[i]
-            e.headers_count = 0
             t = self.enc.encode("FILE " + file.file_fn.replace("\n", "\\n") + "\n")
             plan_toks[i].extend(t)
             plan_mask[i].extend([1]*len(t))
+            file.footer_toks = [self.enc.ESCAPE] + self.enc.encode("/FILE\n")
+            file.check_ctx_n = len(t) + len(file.footer_toks)
+            file.check_aux_n = 0
             # Each range has a header, until it bumps into another range above when exanding
-            e.toks_count_typical_header = len([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % 1234))
-            e.file_text_toks = [None] * len(file.file_text)
-            for ri, (aux, r0, r1) in enumerate(file.file_ranges):
-                e.ranges_need_header.append(True)
-                e.headers_count += 1
-                r0 = max(0, min(r0, len(file.file_text) - 1))
-                r1 = max(0, min(r1, len(file.file_text) - 1))
-                e.ranges_expanding.append((aux, r0, r1, True, True))
-                for line in range(r0, r1 + 1):
-                    _file_line2toks_helper(file, e, line, aux=aux)
-            # e.toks_count = len(t) + e.toks_count_typical_header * e.headers_count
+            file.file_text_toks = [None] * len(file.file_text)
+            for er in file.expanding_ranges:
+                er.need_header = True
+                for line in range(er.line0, er.line1 + 1):
+                    _file_line2toks_helper(file, er, line, aux=er.aux)
 
         def expand_FILE(i, file: _File) -> bool:
             nonlocal filled_ctx_n, filled_aux_n
-            e = expanding_files[i]
             anything_works = False
-            for ri in range(len(e.ranges_expanding)):
-                aux, r0, r1, works0, works1 = e.ranges_expanding[ri]
-                print("range%d: %d, %d, %d, %d, aux=%d" % (ri, r0, r1, works0, works1, aux))
-                if works0:
-                    success = _file_line2toks_helper(file, e, r0, aux)
-                    if not success and r0 > 0:
+            for ri, er in enumerate(file.expanding_ranges):
+                print("range%d: %d..%d, %d, %d, aux=%d" % (i, er.line0, er.line1, er.works0, er.works1, er.aux))
+                if er.works0:
+                    success = _file_line2toks_helper(file, er, er.line0, aux=er.aux)
+                    if not success and er.line0 > 0:
                         # We bumped into another expanding range
-                        e.ranges_need_header[ri] = False
-                        e.headers_count -= 1
-                        if aux:
-                            filled_aux_n -= e.toks_count_typical_header
+                        er.ranges_need_header = False
+                        if er.aux:
+                            filled_aux_n -= toks_count_typical_header
                         else:
-                            filled_ctx_n -= e.toks_count_typical_header
-                    if success and r0 == 0:
-                        works0 = False
+                            filled_ctx_n -= toks_count_typical_header
+                    if success and er.line0 == 0:
+                        er.works0 = False
                     elif success:
-                        r0 -= 1
+                        er.line0 -= 1
                     else:
-                        works0 = False
-                if works1:
-                    success = _file_line2toks_helper(file, e, r1 + 1, aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
-                    if success and r1 + 1 >= len(file.file_text) - 1:
-                        works1 = False
-                        r1 = len(file.file_text) - 1
+                        er.works0 = False
+                if er.works1:
+                    success = _file_line2toks_helper(file, er, er.line1 + 1, aux=er.aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
+                    if success and er.line1 + 1 >= len(file.file_text) - 1:
+                        er.works1 = False
+                        er.line1 = len(file.file_text) - 1
                     elif success:
-                        r1 += 1
-                        assert r1 < len(file.file_text), ri
+                        er.line1 += 1
+                        assert er.line1 < len(file.file_text), ri
                     else:
-                        works1 = False
-                e.ranges_expanding[ri] = (aux, r0, r1, works0, works1)
-                anything_works |= works0 or works1
+                        er.works1 = False
+                anything_works |= er.works0 or er.works1
             return anything_works
 
         def finish_FILE(i, file: _File):
-            e = expanding_files[i]
             t, m = [], []
-            assert len(file.file_text) == len(e.file_text_toks)
-            for aux, r0, r1, works0, works1 in e.ranges_expanding:
-                assert r1 < len(file.file_text), e.ranges_expanding
-                assert works0 == False and works1 == False
+            assert len(file.file_text) == len(file.file_text_toks)
+            for er in file.expanding_ranges:
+                assert er.line1 < len(file.file_text), file.expanding_ranges
+                assert er.works0 == False and er.works1 == False
                 line_countdown = 0
-                for line in range(r0, r1):
+                for line in range(er.line0, er.line1):
                     if line_countdown == 0:
-                        line_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (r0 + file.formal_line0))
+                        line_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (er.line0 + file.formal_line0))
                         t.extend(line_t)
-                        m.extend([1 if line > r0 else 0]*len(line_t))
+                        m.extend([1 if line > er.line0 else 0]*len(line_t))
                         line_countdown = 15
-                    line_t = e.file_text_toks[line]
+                    line_t = file.file_text_toks[line]
                     assert line_t is not None, line
                     t.extend(line_t)
                     m.extend([1]*len(line_t))
             plan_toks[i].extend(t)
             plan_mask[i].extend(m)
+            plan_toks[i].extend(file.footer_toks)
+            plan_mask[i].extend([1]*len(file.footer_toks))
 
         def dump_CHUNK(i, chunk: _Chunk):
             t = self.enc.encode("CHUNK\n")
@@ -283,10 +290,10 @@ class Contrast2023q2:
             t.extend([self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % chunk.formal_line))
             for j in range(chunk.j0, chunk.j1):
                 t.extend(self.enc.encode(chunk.dest_text[j]))
-            # t.extend([self.enc.ESCAPE] + self.enc.encode("/CHUNK\n"))
             m = [1]*len(t)
             plan_toks[i] = t
             plan_mask[i] = m
+
         switch_init = {"MSG": dump_MSG, "FILE": init_FILE, "CHUNK": dump_CHUNK}
         switch_expand = {"FILE": expand_FILE}
         switch_finish = {"FILE": finish_FILE}
