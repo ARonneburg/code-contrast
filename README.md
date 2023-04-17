@@ -22,7 +22,7 @@
 * Multilingual [models](https://huggingface.co/smallcloudai) under the hood we trained ourselves! 20+ languages support: Python, Java, C++, PHP, Javascript, Go and others
 * This server allows you to run these models on your hardware, your code doesn't go outside your control
 * Use the the 3b version if you have 12 GB of GPU memory for best results
-* Completion
+* Real-time code completion
 * AI Toolbox with functions like Explain Code, Fix Bugs, Make Code Shorter, Add Type Hints -- more local functions are coming as we improve the model
 * Privacy settings for projects or even single files
 
@@ -80,7 +80,12 @@ docker logs -f
 
 Run docker container with following command:
 ```commandline
-docker run --gpus 0 --name refact_self_hosting --net host --env SERVER_API_TOKEN={API Key} smallcloud/self_hosting
+docker run \
+       -p 8008:8008 \
+       --gpus 0 \
+       --name refact_self_hosting \
+       --env SERVER_API_TOKEN={API Key} \
+       smallcloud/self_hosting
 ```
 Next time you can start it with following command:
 ```commandline
@@ -98,7 +103,9 @@ pip install git+https://github.com/smallcloudai/code-contrast.git
 ```
 Now you can run server with following command:
 ```commandline
-python -m self_hosting.server --workdir /workdir --token {API Key}
+python -m self_hosting.server \
+       --workdir /workdir \
+       --token {API Key}
 ```
 
 
@@ -120,12 +127,14 @@ Now it should work, just try to write some code! If it doesn't, please report yo
 [GitHub issues](https://github.com/smallcloudai/code-contrast/issues).
 
 
-<details><summary>/etc/hosts workaround</summary>
+<details><summary>Remote server</summary>
 
-If your server runs on remote host and you see a "certificate error" message, add this line to /etc/hosts or C:\Windows\System32\drivers\etc\hosts on windows.
+If you run server on remote host, you should add it to /etc/hosts
+(or C:\Windows\System32\drivers\etc\hosts on Windows) on client.
+Do not forget to replace {server ip address} to real server ip address.
 
 ```commandline
-<server ip>  inference.smallcloud.local
+{server ip address}  inference.smallcloud.local
 ```
 
 and set up this inference url in plugin:
