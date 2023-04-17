@@ -10,5 +10,6 @@ setup(
     version="0.0.3",
     install_requires=["numpy", "tokenizers", "fastapi", "hypercorn", "termcolor",
                       "huggingface_hub", "tiktoken", "cdifflib", "cloudpickle",
-                      "sentencepiece", "dataclasses_json", "torch", "smallcloud"],
+                      "sentencepiece", "dataclasses_json", "torch", "smallcloud",
+                      "transformers"],
 )

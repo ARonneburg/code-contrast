@@ -238,10 +238,11 @@ class Inference:
                 try:
                     self._model_name = None
                     self._last_error = None
+                    # TODO: use HFModel here as an option with the same interface
                     self._model = CodifyModel.from_pretrained(
                         str(workdir / "weights"), device=self._device, repo_id=model_path)
                     self._model = self._model.eval()
-                    self._encoding = self._model.config.encoding
+                    self._encoding = self._model.encoding
                     self._model_name = model_name
                     logging.info(f"model {model_name} loaded sucessfully")
                 except Exception as e:
