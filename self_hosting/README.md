@@ -17,7 +17,7 @@
 * Plugins for [JetBrains](https://plugins.jetbrains.com/plugin/20647-refact-ai) products and
   [VSCode IDE](https://marketplace.visualstudio.com/items?itemName=smallcloud.codify)
 * Multilingual [models](https://huggingface.co/smallcloudai) under the hood. 20+ languages support
-  (python, java, c++, php, javascript, go and others)
+  (Python, Java, C++, PHP, Javascript, Go and others)
 * Self-hosted server running with Docker
 * Completion and AI Toolbox
 * Privacy settings for projects or even single files
@@ -25,18 +25,13 @@
 Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
 [Twitter](https://twitter.com/refact_ai) to get the latest updates.
 
-## Contents
-* [Prerequisities](#prerequisities)
-* [Getting started](#getting-started)
-* [Plugins usage](#plugins-usage)
-* [Contributing](#contributing)
 
 ## Prerequisities
 - Install plugin for your IDE: [JetBrains](https://plugins.jetbrains.com/plugin/20647-refact-ai) or
   [VSCode](https://marketplace.visualstudio.com/items?itemName=smallcloud.codify)
 - Login or sign in to your account
 - Large Language Models require a lot of computing resources and memory.
-  We strongly recommend use this server with **Nvidia GPU with at least 4Gb VRAM**.
+  We recommend to use this server with **Nvidia GPU with at least 4Gb VRAM**.
   Another option is to use it with CPU, but it's quite slow and unusable in practice yet.
 
 ## Getting started
@@ -109,20 +104,27 @@ Settings > Tools > Refact.ai > Advanced > Inference URL
 Extensions > Refact.ai Assistant > Settings > Infurl
 </details>
 
-If your server runs on remote host and you have troubles with direct server ip usage 
-in inference url you should add server ip to hosts: 
-```commandline
-<server ip>  inference.smallcloud.local
-```
-and set up this inference url in plugin:
-```commandline
-https://inference.smallcloud.local:8008
-```
-
-Make sure your server started with same API Key.
+It should work now!
 
 Now it should work, just try to write some code! If it doesn't, please report your experience to
 [GitHub issues](https://github.com/smallcloudai/code-contrast/issues).
+
+
+<details><summary>/etc/hosts workaround</summary>
+
+If your server runs on remote host and you see a "certificate error" message, add this line to /etc/hosts or C:\Windows\System32\drivers\etc\hosts on windows.
+
+```commandline
+<server ip>  inference.smallcloud.local
+```
+
+and set up this inference url in plugin:
+
+```commandline
+https://inference.smallcloud.local:8008
+```
+</details>
+
 
 ## Contributing
 
