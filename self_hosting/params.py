@@ -5,7 +5,7 @@ from typing import Union, Dict, List
 
 
 class SamplingParams(BaseModel):
-    model: str = Query(default=Required, regex="^[a-z/A-Z0-9_]+$")
+    model: str = Query(default="", regex="^[a-z/A-Z0-9_]+$")
     max_tokens: int = 50
     temperature: float = 0.7
     top_p: float = 1.0
