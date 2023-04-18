@@ -18,6 +18,9 @@ from code_contrast import ScratchpadBase
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
 from code_contrast import ScratchpadBigCode
+
+from self_hosting import known_models
+
 from code_contrast import CodifyModel
 from code_contrast import HFModel
 
@@ -48,9 +51,11 @@ class Inference:
         self._device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
 
         self._model_lock = Lock()
-        self._model: Optional[CodifyModel] = None
+        self._model: Optional[torch.nn.Module] = None
         self._encoding = None
-        self._model_name = model_name
+        self._loaded_model_name = ""
+        self._model_name_arg = model_name
+        self._model_dict = dict()
         self._last_error = None
 
         self._model_setup_thread = Thread(
@@ -69,8 +74,10 @@ class Inference:
 
         object_type = request["object"]
         assert object_type in ["diff_completion_req", "text_completion_req"]
+
         if object_type == "diff_completion_req":
-            scratchpad = self._model.DiffScratchpadClass(
+            DiffScratchpadClass = self._model_dict["diff_scratchpad_class"]
+            scratchpad = DiffScratchpadClass(
                 enc=self._encoding,
                 logger=logger,
                 created=created_ts,
@@ -217,53 +224,49 @@ class Inference:
             raise RuntimeError(response.get("human_readable_message", "unknown error"))
         tenant_model = json.loads(response["tenant_model"])
         model_name = tenant_model["model_name"]
-        model_path = tenant_model["model_path"]
-        model_path_type = tenant_model["model_path_type"]
-        if model_path_type not in ["huggingface"]:
-            raise RuntimeError(f"unknown model path type {model_path_type}")
-        return model_name, model_path
+        return model_name
 
     def _model_setup(self, token: str, workdir: Path):
         fetch_timeout = 300
         while True:
             try:
-                model_name, model_path = self._fetch_model_settings(token)
+                model_name = self._model_name_arg or self._fetch_model_settings(token)
             except Exception as e:
                 self._model = None
                 self._encoding = None
-                self._model_name = None
+                self._loaded_model_name = None
                 self._last_error = f"model fetch failed: {e}"
                 logging.error(self._last_error)
                 time.sleep(fetch_timeout)
                 continue
-
-            if model_name == self._model_name:
+            if model_name not in known_models.models_mini_db:
+                logging.error(f"unknown model \"{model_name}\", try upgrading this repo")
                 time.sleep(fetch_timeout)
                 continue
 
+            if model_name == self._loaded_model_name:
+                time.sleep(fetch_timeout)
+                continue
+            self._model_dict = known_models.models_mini_db[model_name]
             with self._model_lock:
                 try:
-                    self._model_name = None
+                    self._loaded_model_name = None
                     self._last_error = None
-                    if "CONTRAST" in model_name:
+                    if self._model_dict["model_class"] == CodifyModel:
                         self._model = CodifyModel.from_pretrained(
-                            str(workdir / "weights"), device=self._device, repo_id=model_path)
+                            str(workdir / "weights"), device=self._device, repo_id=self._model_dict["model_path"])
                         self._model.T = self._model.config.T
-                        self._model.DiffScratchpadClass = ScratchpadDiff
-                    elif "santacoder" in model_name:
-                        self._model = HFModel.from_pretrained("bigcode/santacoder")
-                        self._model.T = 1024
-                        self._model.DiffScratchpadClass = ScratchpadBigCode
                     else:
-                        assert 0, f"unknown model \"{model_name}\", try upgrading this repo"
+                        self._model = HFModel.from_pretrained(self._model_dict["model_path"])
+                        self._model.T = self._model_dict["T"]
                     self._model = self._model.eval()
                     self._encoding = self._model.encoding
-                    self._model_name = model_name
+                    self._loaded_model_name = model_name
                     logging.info(f"model {model_name} loaded sucessfully")
                 except Exception as e:
                     self._model = None
                     self._encoding = None
-                    self._model_name = None
+                    self._loaded_model_name = None
                     self._last_error = f"model {model_name} loading failed: {e}"
                     logging.error(self._last_error)
             time.sleep(fetch_timeout)
@@ -326,13 +329,13 @@ class Inference:
                     for _ in self._generate_scratchpad(tokens_prompt, scratchpad, max_length=request["max_tokens"]):
                         yield self._json_result(
                             scratchpad,
-                            model=self._model_name,
+                            model=self._loaded_model_name,
                             stream=stream,
                             status="in_progress")
                 assert scratchpad.finish_reason
                 yield self._json_result(
                     scratchpad,
-                    model=self._model_name,
+                    model=self._loaded_model_name,
                     stream=stream,
                     status="completed")
         except Exception as e:
@@ -342,7 +345,7 @@ class Inference:
 
     @property
     def model_name(self):
-        return self._model_name
+        return self._loaded_model_name
 
     @property
     def last_error(self):
