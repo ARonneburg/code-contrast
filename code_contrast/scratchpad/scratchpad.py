@@ -145,7 +145,7 @@ class ScratchpadBase:
         text += " <= "
         probs3, top3idx = map(lambda x: x.ravel().cpu().numpy(), probs.topk(4))
         for p, i in zip(probs3, top3idx):
-            text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow"))
+            text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow" if token.item() != i else "green"))
             text += " %0.1f%%" % (100 * p)
         return text
 
