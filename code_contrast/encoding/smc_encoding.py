@@ -164,6 +164,14 @@ class SMCEncoding:
             self.LF = self.encode("\n")
             self.LFLF = self.encode("\n\n")
 
+        elif name in ['pythia']:
+            import tokenizers
+            filename = Path(__file__).resolve().parent / f"{name}.json"
+            self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
+            self.ESCAPE = 0
+            self.DIAMOND = self.DUMMY = 1
+            self.EOT = 0
+
         elif name in ['bigcode_santacoder']:
             import tokenizers
             filename = Path(__file__).resolve().parent / f"{name}.json"
