@@ -25,7 +25,7 @@ class HFModel(nn.Module):
     def from_pretrained(self, path: str, device: str = "cuda", **unused):
         return HFModel(path, device)
 
-    def forward(self, x, past_key_values: Optional = None):
+    def forward(self, x, past_key_values: Optional = None, **unused):
         output = self.model(x, past_key_values=past_key_values)
         return output.logits, output.past_key_values
 
