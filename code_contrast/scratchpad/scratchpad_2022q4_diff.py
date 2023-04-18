@@ -588,3 +588,26 @@ class ScratchpadDiff(ScratchpadBase):
         no_longer_16()
         t2 = time.time()
         self.debuglog("highlight_method4 calc %0.2fs tokens %0.2fs" % (t1-t0, t2-t1))
+
+    def dump(self) -> bytes:
+        import pickle
+        enc = self.enc
+        self.enc = None
+        if self.diff is not None:
+            self.diff.enc = None
+        if self.diff_out is not None:
+            self.diff_out.enc = None
+        d = pickle.dumps(self)
+        self.enc = enc
+        if self.diff is not None:
+            self.diff.enc = enc
+        if self.diff_out is not None:
+            self.diff_out.enc = enc
+        return d
+
+    def set_enc(self, enc: SMCEncoding):
+        self.enc = enc
+        if self.diff is not None:
+            self.diff.enc = enc
+        if self.diff_out is not None:
+            self.diff_out.enc = enc

@@ -61,8 +61,22 @@ def test_cl100k(enc_name):
 
     test_long_text(enc)
 
+def test_llama(enc_name):
+    print(termcolor.colored("\ntesting \"%s\"" % enc_name, "green"))
+    enc = SMCEncoding(enc_name)
+    msg = "I can feel the magic, can you?\n\nПривет мир!!!"
+    toks = enc.encode(msg)
+    print("encode", toks)
+    assert toks == [306, 508, 4459, 278, 15709, 29892, 508, 366, 29973, 13, 13, 30013, 641, 7616, 4157, 29927, 21004], toks
+    msg2 = enc.decode(toks)
+    print("decode", msg2)
+    assert msg2 == msg
+
+    test_long_text(enc)
+
 
 if __name__ == "__main__":
     test_rev50000_derivatives("openai_reversible50000")
     test_rev50000_derivatives("openai_programming_v2")
     test_cl100k("openai_cl100k")
+    test_llama("llama")

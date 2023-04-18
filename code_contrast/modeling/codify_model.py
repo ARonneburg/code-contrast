@@ -35,6 +35,10 @@ class CodifyModel(nn.Module):
             module = module.to(torch.half)
         return module
 
+    @property
+    def encoding(self):
+        return self.config.encoding
+
     @classmethod
     def from_pretrained(cls, path: str, device: str = "cuda", repo_id: Optional[str] = None):
         config = load_config(path, repo_id)

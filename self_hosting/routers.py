@@ -100,7 +100,7 @@ class CompletionRouter(APIRouter):
             last_error = self._inference.last_error
             raise HTTPException(status_code=401,
                                 detail="model loading" if last_error is None else last_error)
-        if post.model != "CONTRASTcode" and self._inference.model_name != post.model:
+        if post.model != "" and post.model != "CONTRASTcode" and self._inference.model_name != post.model:
             raise HTTPException(status_code=401,
                                 detail=f"requested model '{post.model}' doesn't match "
                                        f"server model '{self._inference.model_name}'")

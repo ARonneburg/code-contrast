@@ -2,6 +2,7 @@ import os
 import torch as th
 import termcolor
 import time
+import torch.distributed as dist
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.print_utils import hlprint
@@ -73,6 +74,7 @@ class ScratchpadBase:
             logits_intrusion: Optional[List[Dict[int, float]]] = None,
             top_ps: Optional[List[float]] = None,
             top_ks: Optional[List[int]] = None,
+            model_parallel_group: Optional[dist.ProcessGroup] = None,
             **unused
     ):
         if logits_intrusion:
@@ -96,10 +98,17 @@ class ScratchpadBase:
         else:
             probs = (logits[:, [-1]] / (temperatures + 0.01)).squeeze(1).softmax(dim=-1)
             a = th.multinomial(probs, num_samples=1)
+
+        if model_parallel_group is not None:
+            dist.broadcast(a, src=0, group=model_parallel_group)
+
         tokens.copy_(a, non_blocking=True)
         chosen_tokens.copy_(tokens, non_blocking=True)
 
-        result = dict()
+        result = dict(
+            selected_tokens=tokens,
+            selected_probs=probs
+        )
         if DEBUGLOG_TOP3:
             result["top3"] = self._log_top3(token=tokens[0], probs=probs[0])
         return result
@@ -139,3 +148,14 @@ class ScratchpadBase:
             text += " %i %s" % (i, _format(self.enc.decode([i]), "yellow" if token.item() != i else "green"))
             text += " %0.1f%%" % (100 * p)
         return text
+
+    def dump(self) -> bytes:
+        import pickle
+        enc = self.enc
+        self.enc = None
+        d = pickle.dumps(self)
+        self.enc = enc
+        return d
+
+    def set_enc(self, enc):
+        self.enc = enc
