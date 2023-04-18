@@ -314,7 +314,7 @@ class SMCEncoding:
             if i > 0:
                 tokens = tokens[:i]
         if self._tokenizer:
-            return self._tokenizer.decode(tokens)
+            return self._tokenizer.decode(tokens, skip_special_tokens=False)
         elif self._sentencepiece_tokenizer:
             return self._sentencepiece_tokenizer.decode(tokens.tolist())
         else:

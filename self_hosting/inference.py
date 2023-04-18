@@ -17,7 +17,10 @@ from smallcloud.inference_server import head_and_tail
 from code_contrast import ScratchpadBase
 from code_contrast import ScratchpadDiff
 from code_contrast import ScratchpadCompletion
+from code_contrast import ScratchpadBigCode
 from code_contrast import CodifyModel
+from code_contrast import HFModel
+
 
 from typing import Optional, Dict, Any, Iterable, Tuple, List
 
@@ -67,11 +70,18 @@ class Inference:
         object_type = request["object"]
         assert object_type in ["diff_completion_req", "text_completion_req"]
         if object_type == "diff_completion_req":
-            scratchpad = ScratchpadDiff(
-                enc=self._encoding,
-                logger=logger,
-                created=created_ts,
-                **request)
+            if 0:
+                scratchpad = ScratchpadDiff(
+                    enc=self._encoding,
+                    logger=logger,
+                    created=created_ts,
+                    **request)
+            else:
+                scratchpad = ScratchpadBigCode(
+                    enc=self._encoding,
+                    logger=logger,
+                    created=created_ts,
+                    **request)
         else:
             scratchpad = ScratchpadCompletion(
                 enc=self._encoding,
@@ -242,9 +252,15 @@ class Inference:
                 try:
                     self._model_name = None
                     self._last_error = None
-                    # TODO: use HFModel here as an option with the same interface
-                    self._model = CodifyModel.from_pretrained(
-                        str(workdir / "weights"), device=self._device, repo_id=model_path)
+                    if 0:
+                        self._model = CodifyModel.from_pretrained(
+                            str(workdir / "weights"), device=self._device, repo_id=model_path)
+                    else:
+                        self._model = HFModel.from_pretrained("bigcode/santacoder")
+                        class DummyConfig:
+                            pass
+                        self._model.config = DummyConfig()
+                        self._model.config.T = 1024
                     self._model = self._model.eval()
                     self._encoding = self._model.encoding
                     self._model_name = model_name
