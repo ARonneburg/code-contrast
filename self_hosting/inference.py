@@ -209,7 +209,7 @@ class Inference:
     def _fetch_model(token) -> Tuple[str, str]:
         url = "https://www.smallcloud.ai/v1/codify-model"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
-        response = requests.get(url=url, headers=headers).json()
+        response = requests.get(url=url, headers=headers, timeout=30).json()
         if response["retcode"] != "OK":
             raise RuntimeError(response.get("human_readable_message", "unknown error"))
         tenant_model = json.loads(response["tenant_model"])
@@ -221,7 +221,7 @@ class Inference:
         return model_name, model_path
 
     def _model_setup(self, token: str, workdir: Path):
-        fetch_timeout = 30
+        fetch_timeout = 300
         while True:
             try:
                 model_name, model_path = self._fetch_model(token)
