@@ -150,6 +150,7 @@ class Inference:
         temperatures = torch.tensor([scratchpad.temp], dtype=torch.float32,
                                     device=self._model.device).view(-1, 1, 1) + 1e-3
 
+        t0 = time.time()
         for token_idx in range(max_length):
             if token_idx == 0:
                 seq_len, cache_len = sequence.shape[1], 0
@@ -181,6 +182,9 @@ class Inference:
                 temperatures=temperatures,
                 **before_kwargs
             )
+            if "top3" in select_kwargs:
+                # pass DEBUG=1 environment variable to see this
+                print("%6.1fms" % (1000*(time.time() - t0)), select_kwargs["top3"][0])
 
             sequence = torch.cat([sequence, output_tokens], dim=-1)
 
