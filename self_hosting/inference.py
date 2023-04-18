@@ -44,13 +44,13 @@ def non_blocking_lock(lock: Lock):
 
 class Inference:
 
-    def __init__(self, token: str, workdir: Path, force_cpu: bool):
+    def __init__(self, token: str, workdir: Path, force_cpu: bool, model_name: str = ""):
         self._device = "cuda" if torch.cuda.is_available() and not force_cpu else "cpu"
 
         self._model_lock = Lock()
         self._model: Optional[CodifyModel] = None
         self._encoding = None
-        self._model_name = None
+        self._model_name = model_name
         self._last_error = None
 
         self._model_setup_thread = Thread(
@@ -70,25 +70,18 @@ class Inference:
         object_type = request["object"]
         assert object_type in ["diff_completion_req", "text_completion_req"]
         if object_type == "diff_completion_req":
-            if 0:
-                scratchpad = ScratchpadDiff(
-                    enc=self._encoding,
-                    logger=logger,
-                    created=created_ts,
-                    **request)
-            else:
-                scratchpad = ScratchpadBigCode(
-                    enc=self._encoding,
-                    logger=logger,
-                    created=created_ts,
-                    **request)
+            scratchpad = self._model.DiffScratchpadClass(
+                enc=self._encoding,
+                logger=logger,
+                created=created_ts,
+                **request)
         else:
             scratchpad = ScratchpadCompletion(
                 enc=self._encoding,
                 logger=logger,
                 created=created_ts,
                 **request)
-        p = scratchpad.prompt(self._model.config.T)
+        p = scratchpad.prompt(self._model.T)
         if len(p) == 0:
             raise RuntimeError("empty tokens prompt")
 
@@ -216,7 +209,7 @@ class Inference:
             scratchpad.finish_reason = "maxlen"
 
     @staticmethod
-    def _fetch_model(token) -> Tuple[str, str]:
+    def _fetch_model_settings(token) -> Tuple[str, str]:
         url = "https://www.smallcloud.ai/v1/codify-model"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
         response = requests.get(url=url, headers=headers, timeout=30).json()
@@ -234,7 +227,7 @@ class Inference:
         fetch_timeout = 300
         while True:
             try:
-                model_name, model_path = self._fetch_model(token)
+                model_name, model_path = self._fetch_model_settings(token)
             except Exception as e:
                 self._model = None
                 self._encoding = None
@@ -252,15 +245,17 @@ class Inference:
                 try:
                     self._model_name = None
                     self._last_error = None
-                    if 0:
+                    if "CONTRAST" in model_name:
                         self._model = CodifyModel.from_pretrained(
                             str(workdir / "weights"), device=self._device, repo_id=model_path)
-                    else:
+                        self._model.T = self._model.config.T
+                        self._model.DiffScratchpadClass = ScratchpadDiff
+                    elif "santacoder" in model_name:
                         self._model = HFModel.from_pretrained("bigcode/santacoder")
-                        class DummyConfig:
-                            pass
-                        self._model.config = DummyConfig()
-                        self._model.config.T = 1024
+                        self._model.T = 1024
+                        self._model.DiffScratchpadClass = ScratchpadBigCode
+                    else:
+                        assert 0, f"unknown model \"{model_name}\", try upgrading this repo"
                     self._model = self._model.eval()
                     self._encoding = self._model.encoding
                     self._model_name = model_name
