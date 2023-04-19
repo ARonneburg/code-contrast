@@ -16,14 +16,13 @@
 
 
 ## Features
-
 * Plugins for [JetBrains](https://plugins.jetbrains.com/plugin/20647-refact-ai) products and
   [VSCode IDE](https://marketplace.visualstudio.com/items?itemName=smallcloud.codify)
-* Multilingual [models](https://huggingface.co/smallcloudai) under the hood we trained ourselves! 20+ languages support: Python, Java, C++, PHP, Javascript, Go and others
+* Multilingual [models](https://huggingface.co/smallcloudai) under the hood we trained ourselves!
+* 20+ languages support: Python, Java, C++, PHP, Javascript, Go and others
 * This server allows you to run these models on your hardware, your code doesn't go outside your control
 * Use the the 3b version if you have 12 GB of GPU memory for best results
 * Real-time code completion
-* AI Toolbox with functions like Explain Code, Fix Bugs, Make Code Shorter, Add Type Hints -- more local functions are coming as we improve the model
 * Privacy settings for projects or even single files
 
 Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
@@ -33,13 +32,13 @@ Join our [Discord server](https://www.smallcloud.ai/discord) and follow our
 ## Prerequisities
 - Install plugin for your IDE: [JetBrains](https://plugins.jetbrains.com/plugin/20647-refact-ai) or
   [VSCode](https://marketplace.visualstudio.com/items?itemName=smallcloud.codify)
-- Login or sign in to your account
+- Sign up or login in to your account
 - Large Language Models require a lot of computing resources and memory.
-  We recommend to use this server with **Nvidia GPU with at least 4Gb VRAM**.
+  We recommend using this server with **Nvidia GPU with at least 4Gb VRAM**.
   Another option is to use it with CPU, but it's quite slow and unusable in practice yet.
 
 ## Running Server in Docker
-The recommended way to run server is pre-builded Docker image.
+The recommended way to run server is a pre-build Docker image.
 
 Install [Docker with NVidia GPU support](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker).
 On Windows you need to install WSL 2 first, [one guide to do this](https://docs.docker.com/desktop/install/windows-install).
@@ -147,7 +146,7 @@ https://inference.smallcloud.local:8008
 
 ## Contributing
 
-We are open for contributing. If you have any ideas and ready to implement it, just:
+We are open for contributions. If you have any ideas and ready to implement this, just:
 - make a [fork](https://github.com/smallcloudai/code-contrast/fork)
 - make your changes, commit to your fork
 - and open a [PR](https://github.com/smallcloudai/code-contrast/fork)
