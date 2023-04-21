@@ -214,6 +214,16 @@ class SMCEncoding:
             self.LF = self._encode_token("\n")
             self.LFLF = self._encode_token("\n\n")
             self.n_vocab = self._tokenizer.get_vocab_size()
+
+        elif name in ['stablelm-alpha']:
+            import tokenizers
+            filename = Path(__file__).resolve().parent / f"{name}.json"
+            self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
+            self.ESCAPE = 0  # <|endoftext|>
+            self.DIAMOND = self.DUMMY = 1  # <|padding|>
+            self.LF = self._encode_token("\n")
+            self.LFLF = self._encode_token("\n\n")
+            self.n_vocab = self._tokenizer.get_vocab_size()
         else:
             assert 0
 
