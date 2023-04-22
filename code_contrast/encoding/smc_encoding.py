@@ -171,6 +171,9 @@ class SMCEncoding:
             self.ESCAPE = 0
             self.DIAMOND = self.DUMMY = 1
             self.EOT = 0
+            self.LF = self._encode_token("\n")
+            self.LFLF = self._encode_token("\n\n")
+            self.n_vocab = self._tokenizer.get_vocab_size()
 
         elif name in ['bigcode_santacoder']:
             import tokenizers
