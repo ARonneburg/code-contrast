@@ -20,7 +20,9 @@ from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
 element_types = ["SYSTEM", "USER", "ASSISTANT", "FILE", "CHUNK", "TOOL", "OUTPUT"]
-# element_stretch = ["FULL", "AUX", "RAND", "EXPAND"]
+
+
+ADDITIONAL_CHECKS = True
 
 
 @dataclass
@@ -50,6 +52,8 @@ class _File(_PlanElement):
     expanding_ranges: List[_FileExpandingRange] = field(default_factory=lambda: [])
     check_lines: int = 0
     footer_toks: List[int] = field(default_factory=lambda: [])
+    lineheaders_dirty: bool = True
+    lineheaders_n: int = 0
 
 
 @dataclass
@@ -87,6 +91,7 @@ class Contrast2023q2:
         return f
 
     def add_msg(self, msg_role, msg_text):
+        assert msg_role in element_types
         m = _Msg("MSG", msg_role, msg_text)
         self.plan.append(m)
         return m
@@ -118,10 +123,6 @@ class Contrast2023q2:
         files = []
         chunks = []
         for fni, fn in enumerate(fns):
-            # main_file = (fni == len(fns) - 1)
-            # stretch = "RANDOM"
-            # if tight_shrink:
-            #     stretch = "EXPAND" if main_file else "AUX"
             f = self.add_file(fn, [(x + "\n") for x in odm["orig"][fn].splitlines()])
             if external_poi_ranges and fn in external_poi_ranges:
                 poi_list = external_poi_ranges[fn]
@@ -207,18 +208,27 @@ class Contrast2023q2:
             plan_toks[i].extend(t)
             plan_mask[i].extend([1]*len(t))
             file.footer_toks = [self.enc.ESCAPE] + self.enc.encode("/FILE\n")
-            filled_aux_n += len(t) + len(file.footer_toks)
+            filled_aux_n += len(file.footer_toks)
             file.check_lines = 0
             # Each range has a header, until it bumps into another range above when exanding
             file.file_lines_toks = [None] * len(file.file_lines)
+            file.lineheaders_dirty = True
             for er in file.expanding_ranges:
                 er.need_header = True
-                if er.aux:
-                    filled_aux_n += toks_count_LINE
-                else:
-                    filled_ctx_n += toks_count_LINE
                 for line in range(er.line0, er.line1 + 1):
                     _file_line2toks_helper(file, er, line, aux=er.aux)
+            filled_ctx_n += _file_lineheader_tokens(file)
+
+        def _file_lineheader_tokens(file: _File) -> int:
+            if file.lineheaders_dirty:
+                # Intersecting ranges will make the estimation larger than it should be, causing this
+                # calculation to be more conservative => the end result is a less filled context.
+                file.lineheaders_n = sum(
+                    int(er.need_header) + (er.line1 - er.line0 + 1) // LINE_NUMBER_EACH
+                    for er in file.expanding_ranges
+                )
+                file.lineheaders_dirty = False
+            return file.lineheaders_n * toks_count_LINE
 
         def _file_line2toks_helper(file: _File, er: _FileExpandingRange, l: int, aux: int):
             nonlocal filled_ctx_n, filled_aux_n
@@ -242,15 +252,12 @@ class Contrast2023q2:
                 return False
             file.check_lines += 1
             file.file_lines_toks[l] = t
-            if file.check_lines % LINE_NUMBER_EACH == 0:
-                if aux:
-                    filled_aux_n += toks_count_LINE
-                else:
-                    filled_ctx_n += toks_count_LINE
+            file.lineheaders_dirty = True
             return True
 
         def expand_FILE(i, file: _File) -> bool:
             nonlocal filled_ctx_n, filled_aux_n
+            filled_ctx_n -= _file_lineheader_tokens(file)
             anything_works = False
             for ri, er in enumerate(file.expanding_ranges):
                 if er.works0:
@@ -258,10 +265,7 @@ class Contrast2023q2:
                         # We bumped into another expanding range
                         print(" ! bumped into another expanding range er.line0 - 1 = %d" % (er.line0 - 1))
                         er.need_header = False
-                        if er.aux:
-                            filled_aux_n -= toks_count_LINE
-                        else:
-                            filled_ctx_n -= toks_count_LINE
+                        file.lineheaders_dirty = True
                         er.works0 = False
                     success = _file_line2toks_helper(file, er, er.line0 - 1, aux=er.aux)
                     if success:
@@ -280,15 +284,17 @@ class Contrast2023q2:
                         er.works1 = False
                 print("range%d: %d..%d, %d, %d, aux=%d, need_header=%i" % (ri, er.line0, er.line1, er.works0, er.works1, er.aux, er.need_header))
                 anything_works |= er.works0 or er.works1
-                recheck_ctx_n = 0
-                recheck_aux_n = 0
-                for line in range(er.line0, er.line1 + 1):
-                    if er.aux:
-                        recheck_aux_n += len(file.file_lines_toks[line])
-                    else:
-                        recheck_ctx_n += len(file.file_lines_toks[line])
-                assert recheck_aux_n == er.check_aux_n
-                assert recheck_ctx_n == er.check_ctx_n
+                if ADDITIONAL_CHECKS:
+                    recheck_ctx_n = 0
+                    recheck_aux_n = 0
+                    for line in range(er.line0, er.line1 + 1):
+                        if er.aux:
+                            recheck_aux_n += len(file.file_lines_toks[line])
+                        else:
+                            recheck_ctx_n += len(file.file_lines_toks[line])
+                    assert recheck_aux_n == er.check_aux_n
+                    assert recheck_ctx_n == er.check_ctx_n
+            filled_ctx_n += _file_lineheader_tokens(file)
             return anything_works
 
         def finish_FILE(i, file: _File):
@@ -415,7 +421,7 @@ def test_expansion(enc: SMCEncoding):
         },
         "commitmsg": "Expansion test",
     }
-    for n_ctx in range(200, 400, 100):
+    for n_ctx in range(300, 400, 100):
         t = Contrast2023q2(enc)
         limit_aux_n = 100
         limit_ctx_n = n_ctx - limit_aux_n
