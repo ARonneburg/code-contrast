@@ -1,11 +1,7 @@
 import random
 import time
-import copy
-import json
-
 import termcolor
 
-import difflib
 from cdifflib import CSequenceMatcher
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
@@ -28,7 +24,6 @@ ADDITIONAL_CHECKS = True
 @dataclass
 class _PlanElement:
     el_type: str
-    # el_stretch: str
 
 
 @dataclass
@@ -36,11 +31,10 @@ class _FileExpandingRange:
     aux: int
     line0: int
     line1: int
-    need_header: bool = True
+    line0expand: int = -1
+    line1expand: int = -1
     works0: bool = True
     works1: bool = True
-    check_ctx_n: int = 0
-    check_aux_n: int = 0
 
 
 @dataclass
@@ -50,10 +44,10 @@ class _File(_PlanElement):
     file_lines_toks: List[Optional[List[int]]] = field(default_factory=lambda: [])
     formal_line0: int = -1  # §LINE1337 first line
     expanding_ranges: List[_FileExpandingRange] = field(default_factory=lambda: [])
-    check_lines: int = 0
     footer_toks: List[int] = field(default_factory=lambda: [])
     lineheaders_dirty: bool = True
-    lineheaders_n: int = 0
+    lineheaders_cnt_n: int = 0
+    lineheaders_aux_n: int = 0
 
 
 @dataclass
@@ -104,8 +98,6 @@ class Contrast2023q2:
     def from_odm_dict(
         self,
         odm: Dict[str, Any],
-        limit_ctx_n: int,
-        limit_aux_n: int,
         # random_shrink = True,
         tight_shrink = False,
         exact_cx_lines0 = -1,
@@ -138,7 +130,6 @@ class Contrast2023q2:
             chunks.extend(self.run_diff(f, [(x + "\n") for x in odm["dest"][fn].splitlines()], exact_cx_lines0, exact_cx_lines1))
         random.shuffle(chunks)
         self.plan.extend(chunks)
-        self.pack_context(1, limit_ctx_n, limit_aux_n)
 
     def run_diff(self, f: _File, dest_text: List[str], exact_cx_lines0: int, exact_cx_lines1: int):
         # an important side effect of this function is f.expanding_ranges
@@ -209,29 +200,45 @@ class Contrast2023q2:
             plan_mask[i].extend([1]*len(t))
             file.footer_toks = [self.enc.ESCAPE] + self.enc.encode("/FILE\n")
             filled_aux_n += len(file.footer_toks)
-            file.check_lines = 0
             # Each range has a header, until it bumps into another range above when exanding
             file.file_lines_toks = [None] * len(file.file_lines)
+            file.lineheaders_cnt_n = 0
+            file.lineheaders_aux_n = 0
             file.lineheaders_dirty = True
             for er in file.expanding_ranges:
-                er.need_header = True
-                for line in range(er.line0, er.line1 + 1):
+                er.works0 = True
+                er.works1 = True
+                er.line0expand = er.line0
+                er.line1expand = er.line1
+                for line in range(er.line0expand, er.line1expand + 1):
                     _file_line2toks_helper(file, er, line, aux=er.aux)
-            filled_ctx_n += _file_lineheader_tokens(file)
+            _file_lineheader_tokens(file)
 
-        def _file_lineheader_tokens(file: _File) -> int:
-            if file.lineheaders_dirty:
-                # Intersecting ranges will make the estimation larger than it should be, causing this
-                # calculation to be more conservative => the end result is a less filled context.
-                file.lineheaders_n = sum(
-                    int(er.need_header) + (er.line1 - er.line0 + 1) // LINE_NUMBER_EACH
-                    for er in file.expanding_ranges
-                )
-                file.lineheaders_dirty = False
-            return file.lineheaders_n * toks_count_LINE
+        def _file_lineheader_tokens(file: _File):
+            nonlocal filled_ctx_n, filled_aux_n
+            if not file.lineheaders_dirty:
+                return
+            # Intersecting ranges will make the estimation larger than it should be, causing this
+            # calculation to be more conservative => the end result is a less filled context.
+            cnt_lineheaders_n = sum(
+                1 + (er.line1expand - er.line0expand + 1) // LINE_NUMBER_EACH
+                for er in file.expanding_ranges if not er.aux
+            )
+            aux_lineheaders_n = sum(
+                1 + (er.line1expand - er.line0expand + 1) // LINE_NUMBER_EACH
+                for er in file.expanding_ranges if er.aux
+            )
+            file.lineheaders_dirty = False
+            if cnt_lineheaders_n != file.lineheaders_cnt_n:
+                filled_ctx_n += (cnt_lineheaders_n - file.lineheaders_cnt_n) * toks_count_LINE
+                file.lineheaders_cnt_n = cnt_lineheaders_n
+            if aux_lineheaders_n != file.lineheaders_aux_n:
+                filled_aux_n += (aux_lineheaders_n - file.lineheaders_aux_n) * toks_count_LINE
+                file.lineheaders_aux_n = aux_lineheaders_n
 
         def _file_line2toks_helper(file: _File, er: _FileExpandingRange, l: int, aux: int):
             nonlocal filled_ctx_n, filled_aux_n
+            _file_lineheader_tokens(file)
             if l < 0 or l >= len(file.file_lines):
                 return False
             if file.file_lines_toks[l] is not None:
@@ -240,61 +247,46 @@ class Contrast2023q2:
             take_line = False
             if aux:
                 if filled_aux_n + len(t) < limit_aux_n:
+                    # print("take aux line %i" % (l))
                     filled_aux_n += len(t)
-                    er.check_aux_n += len(t)
                     take_line = True
             else:
                 if filled_ctx_n + len(t) < limit_ctx_n + (limit_aux_n - filled_aux_n):
+                    # print("take ctx line %i" % (l))
                     filled_ctx_n += len(t)
-                    er.check_ctx_n += len(t)
                     take_line = True
             if not take_line:
                 return False
-            file.check_lines += 1
             file.file_lines_toks[l] = t
             file.lineheaders_dirty = True
             return True
 
-        def expand_FILE(i, file: _File) -> bool:
-            nonlocal filled_ctx_n, filled_aux_n
-            filled_ctx_n -= _file_lineheader_tokens(file)
+        def expand_FILE(i, file: _File, aux) -> bool:
             anything_works = False
             for ri, er in enumerate(file.expanding_ranges):
+                if er.aux != aux:
+                    continue
                 if er.works0:
-                    if er.line0 - 1 > 0 and file.file_lines_toks[er.line0 - 1] is not None:
-                        # We bumped into another expanding range
-                        print(" ! bumped into another expanding range er.line0 - 1 = %d" % (er.line0 - 1))
-                        er.need_header = False
-                        file.lineheaders_dirty = True
-                        er.works0 = False
-                    success = _file_line2toks_helper(file, er, er.line0 - 1, aux=er.aux)
+                    # if er.line0expand - 1 > 0 and file.file_lines_toks[er.line0expand - 1] is not None:
+                    #     print(" ! bumped into another expanding range er.line0expand - 1 = %d" % (er.line0expand - 1))
+                    #     er.works0 = False
+                    success = _file_line2toks_helper(file, er, er.line0expand - 1, aux=er.aux)
                     if success:
-                        er.line0 -= 1
+                        er.line0expand -= 1
                     else:
                         er.works0 = False
                 if er.works1:
-                    success = _file_line2toks_helper(file, er, er.line1 + 1, aux=er.aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
-                    if success and er.line1 + 1 >= len(file.file_lines) - 1:
+                    success = _file_line2toks_helper(file, er, er.line1expand + 1, aux=er.aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
+                    if success and er.line1expand + 1 >= len(file.file_lines) - 1:
                         er.works1 = False
-                        er.line1 = len(file.file_lines) - 1
+                        er.line1expand = len(file.file_lines) - 1
                     elif success:
-                        er.line1 += 1
-                        assert er.line1 < len(file.file_lines), ri
+                        er.line1expand += 1
+                        assert er.line1expand < len(file.file_lines), ri
                     else:
                         er.works1 = False
-                print("range%d: %d..%d, %d, %d, aux=%d, need_header=%i" % (ri, er.line0, er.line1, er.works0, er.works1, er.aux, er.need_header))
+                # print("range%d: %d..%d, %d, %d, aux=%d, need_header=%i" % (ri, er.line0expand, er.line1expand, er.works0, er.works1, er.aux, er.need_header))
                 anything_works |= er.works0 or er.works1
-                if ADDITIONAL_CHECKS:
-                    recheck_ctx_n = 0
-                    recheck_aux_n = 0
-                    for line in range(er.line0, er.line1 + 1):
-                        if er.aux:
-                            recheck_aux_n += len(file.file_lines_toks[line])
-                        else:
-                            recheck_ctx_n += len(file.file_lines_toks[line])
-                    assert recheck_aux_n == er.check_aux_n
-                    assert recheck_ctx_n == er.check_ctx_n
-            filled_ctx_n += _file_lineheader_tokens(file)
             return anything_works
 
         def finish_FILE(i, file: _File):
@@ -308,7 +300,6 @@ class Contrast2023q2:
                     continue
                 if line_countdown == 0:
                     line_n_t = [self.enc.ESCAPE] + self.enc.encode("LINE%04d\n" % (line_n + file.formal_line0))
-                    print("------ len of line_n_t = %d == %d" % (len(line_n_t), toks_count_LINE))
                     t.extend(line_n_t)
                     m.extend([1 if not first_header else 0]*len(line_n_t))
                     first_header = False
@@ -329,28 +320,25 @@ class Contrast2023q2:
         for i, p in enumerate(self.plan):
             filled_ctx_n += 1   # ESCAPE
             switch_init[p.el_type](i, p)   # type: ignore
-            print("%i %s init plan %i tokens" % (i, p.el_type, len(plan_toks[i])))
-            print(termcolor.colored(self.enc.decode(plan_toks[i]), "red"))
             filled_ctx_n += len(plan_toks[i])
-        print("after init, filled_ctx_n %d < limit_ctx_n %d, limit_aux_n %d, limit_ctx_n+limit_aux_n %d" % (filled_ctx_n, limit_ctx_n, limit_aux_n, limit_ctx_n + limit_aux_n))
         if filled_ctx_n > limit_ctx_n:
             excess = filled_ctx_n - limit_ctx_n
             limit_aux_n = max(0, limit_aux_n - excess)
             print("WARNING: initial filled_ctx_n %d > limit_ctx_n %d. Reduced limit_aux_n to %d" % (filled_ctx_n, limit_ctx_n, limit_aux_n))
-        while 1:
-            any_still_expanding = False
-            for i, p in enumerate(self.plan):
-                if p.el_type not in switch_expand:
-                    continue
-                print("expand %i %s" % (i, p.el_type), "filled_ctx_n %d < %d" % (filled_ctx_n, limit_ctx_n),  "filled_aux_n %d < %d" % (filled_aux_n, limit_aux_n))
-                any_still_expanding |= switch_expand[p.el_type](i, p)  # type: ignore
-                print(
-                    #" => ctx %i aux %i lines %i" % (p.check_ctx_n, p.check_aux_n, p.check_lines),
-                    " total ctx %i aux %i," % (filled_ctx_n, filled_aux_n),
-                    " projected ctx_n+aux_n %i," % (filled_ctx_n + filled_aux_n),
-                )
-            if not any_still_expanding:
-                break
+        for aux in [1, 0]:
+            while 1:
+                any_still_expanding = False
+                for i, p in enumerate(self.plan):
+                    if p.el_type not in switch_expand:
+                        continue
+                    # print("expand %i %s" % (i, p.el_type), "filled_ctx_n %d < %d" % (filled_ctx_n, limit_ctx_n),  "filled_aux_n %d < %d" % (filled_aux_n, limit_aux_n))
+                    any_still_expanding |= switch_expand[p.el_type](i, p, aux)  # type: ignore
+                    # print(
+                    #     " => total ctx %i aux %i," % (filled_ctx_n, filled_aux_n),
+                    #     "projected ctx_n+aux_n %i\n" % (filled_ctx_n + filled_aux_n),
+                    # )
+                if not any_still_expanding:
+                    break
         for i, p in enumerate(self.plan):
             if p.el_type not in switch_finish:
                 continue
@@ -362,15 +350,16 @@ class Contrast2023q2:
             self.m.extend(msk if i >= mask_from_plan_n else [0]*len(msk))
         self.r.extend([self.enc.ESCAPE, self.enc.EOT])
         self.m.extend([1, 1])
+        # print("projected filled_ctx_n %d < limit %d" % (filled_ctx_n, limit_ctx_n))
+        # print("projected filled_aux_n %d < limit %d" % (filled_aux_n, limit_aux_n))
+        # print("projected filled_ctx_n+filled_aux_n = %d < %d" % (filled_ctx_n + filled_aux_n, limit_ctx_n + limit_aux_n))
+        # print("                       real context = %d" % (len(self.r),))
         assert len(self.r) == len(self.m)
-        print("projected filled_ctx_n %d < limit %d" % (filled_ctx_n, limit_ctx_n))
-        print("projected filled_aux_n %d < limit %d" % (filled_aux_n, limit_aux_n))
-        print("projected filled_ctx_n+filled_aux_n = %d < %d" % (filled_ctx_n + filled_aux_n, limit_ctx_n + limit_aux_n))
-        print("                       real context = %d" % (len(self.r),))
+        assert len(self.r) <= filled_ctx_n + filled_aux_n, "Packed tokens %d, upper bound on number of tokens %d. May be an internal bug, maybe toks_count_LINE is not the max value possible." % (len(self.r), filled_ctx_n + filled_aux_n)
         return filled_ctx_n, filled_aux_n
 
     def dump_r(self):
-        return hlprint(enc, self.r, self.m)
+        return hlprint(self.enc, self.r, self.m)
 
     def __repr__(self) -> str:
         ret = ""
@@ -390,167 +379,4 @@ class Contrast2023q2:
                 ret += termcolor.colored(val, "cyan") + " "
             ret += "\n"
         return ret
-
-
-def test_messages(enc: SMCEncoding):
-    t = Contrast2023q2(enc)
-    t.add_msg("SYSTEM", "You are a coding assistant.")
-    t.add_msg("USER", "how are you?")
-    t.add_msg("ASSISTANT", "I'm not sure, I think I have bugs.")
-    limit_ctx_n = 100
-    limit_aux_n = 0
-    filled_ctx_n, filled_aux_n = t.pack_context(0, limit_ctx_n, limit_aux_n)
-    print(hlprint(enc, t.r, t.m))
-    assert filled_ctx_n == len(t.r)
-    assert filled_aux_n == 0
-
-
-def test_expansion(enc: SMCEncoding):
-    orig = ["# this is line %d" % i for i in range(30)]
-    dest = orig[:]
-    dest[10] = "# changed line"
-    external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None
-    external_poi_ranges = defaultdict(list)
-    external_poi_ranges["test.py"] = [(20, 20), (25, 25)]
-    odm = {
-        "orig": {
-            'test.py': "\n".join(orig),
-        },
-        "dest": {
-            'test.py': "\n".join(dest),
-        },
-        "commitmsg": "Expansion test",
-    }
-    for n_ctx in range(300, 400, 100):
-        t = Contrast2023q2(enc)
-        limit_aux_n = 100
-        limit_ctx_n = n_ctx - limit_aux_n
-        t.from_odm_dict(odm, limit_ctx_n, limit_aux_n, tight_shrink=True, external_poi_ranges=external_poi_ranges)
-        print(t.dump_r())
-        time.sleep(1)
-        quit()
-
-
-
-test_orig = """
-from typing import Callable
-import math
-
-def newton_method(f: Callable[[float], float], x1: float, x2: float) -> float:
-
-    asertr x1 < x2, "x1 must be less than x2"
-    while x2 - x1 > 1e-6:
-        x = (x1 + x2) / 2
-        if f(x) == 0:
-            return x
-        elif f(x) * f(x1) < 0:
-            x2 = x
-        else:
-            x1 = x
-    x /= 0
-    return x
-
-if __name__ == "__main__":
-    print(newton_method(lambda x: x ** 2 - 1, 0, 10-1))
-"""
-
-test_dest = """
-from typing import Callable
-import math
-
-def newton_method(f: Callable[[float], float], x1: float, x2: float) -> float:
-    assert x1 < x2, "x1 must be less than x2"
-    while x2 - x1 > 1e-6:
-        x = (x1 + x2) / 2
-        if f(x) == 0:
-            return x
-        elif f(x) * f(x1) < 0:
-            x2 = x
-        else:
-            x1 = x
-    return x
-
-if __name__ == "__main__":
-    print(newton_method(lambda x: x ** 2 - 1, 0, 10-1))
-    print("Better!")
-"""
-
-
-example_odm = {
-    "orig": {
-        'file1.py': test_orig,
-    },
-    "dest": {
-        'file1.py': test_dest,
-    },
-    "commitmsg": "fix typo",
-}
-
-
-def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=2048, limit_aux_n=512, tight_shrink: bool=False):
-    import time
-    t0 = time.time()
-    test1 = Contrast2023q2(enc)
-    full_orig_tokens = test1.from_odm_dict(odm, limit_ctx_n, limit_aux_n,
-        tight_shrink=tight_shrink,
-    )
-    quit()
-
-    test1.write_edits()
-    if verbose:
-        t1 = time.time()
-        print("prompt %0.2fms => %i tokens" % (1000*(t1 - t0), len(test1.r)))
-    if len(test1.r) > 2*n_ctx:
-        # Don't test because likely there will not be enough position tokens anyway
-        return {}
-    edit_classes = test1.edit_class_vector()
-    if verbose:
-        print(editclass_print(enc, test1.r, test1.m, edit_classes))
-        print("tokens %i, n_ctx=%i" % (len(test1.r), n_ctx))
-    test2 = ContrastDiff(enc)
-    test_odm_nodest = copy.deepcopy(odm)
-    del test_odm_nodest["dest"]
-    us = test2.untokenize(test1.r, full_orig_tokens)
-    e1 = test1.dump_edits()
-    e2 = test2.dump_edits()
-    if verbose:
-        print("\n" + termcolor.colored("-"*130, "yellow"))
-        print(e1)
-    def first_different_symbol_e1_e2():
-        for i in range(len(e1)):
-            if e1[i] != e2[i]:
-                return i
-        return -1
-    assert e1 == e2, ("len(test1.r)==%i" % len(test1.r)) + "\n" + e1 + "\n" + e2 + "\n\nfirst_different_symbol_e1_e2=%i" % first_different_symbol_e1_e2()
-    test2.apply_edits_return_dest(us)
-    for err in test2.errors:
-        print("ERROR:", err)
-    for fn in test1.dest_tokens.keys():
-        # if verbose:
-        #     print("dest %s:" % fn)
-        #     print(hlprint(enc, test1.dest_tokens[fn]))
-        if test1.dest_tokens[fn] != test2.dest_tokens[fn]:
-            dest1 = enc.decode(test1.dest_tokens[fn])
-            dest2 = enc.decode(test2.dest_tokens[fn])
-            udiff = list(difflib.unified_diff(
-                dest1.splitlines(),
-                dest2.splitlines(),
-                fromfile=fn,
-                tofile=fn,
-                lineterm="",
-            ))
-            print("\n".join(udiff))
-            print(json.dumps(us.stats))
-            assert 0, len(udiff)
-    if verbose:
-        print(json.dumps(us.stats))
-        print("diff.r", len(test1.r))
-    return us.stats
-
-
-if __name__ == "__main__":
-    enc = SMCEncoding("openai_cl100k")
-    # test_messages(enc)
-    test_expansion(enc)
-    # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 
