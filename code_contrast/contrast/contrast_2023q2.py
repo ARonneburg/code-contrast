@@ -27,7 +27,7 @@ class _PlanElement:
 
 
 @dataclass
-class _FileExpandingRange:
+class _FileExpandingRange:  # Only for prompt packing
     aux: int
     line0: int
     line1: int
@@ -41,8 +41,9 @@ class _FileExpandingRange:
 class _File(_PlanElement):
     file_fn: str
     file_lines: List[str]
-    file_lines_toks: List[Optional[List[int]]] = field(default_factory=lambda: [])
     formal_line0: int = -1  # §LINE1337 first line
+    # For prompt packing:
+    file_lines_toks: List[Optional[List[int]]] = field(default_factory=lambda: [])
     expanding_ranges: List[_FileExpandingRange] = field(default_factory=lambda: [])
     footer_toks: List[int] = field(default_factory=lambda: [])
     lineheaders_dirty: bool = True
@@ -53,6 +54,7 @@ class _File(_PlanElement):
 @dataclass
 class _Chunk(_PlanElement):
     orig_file: _File
+    # For prompt generation:
     dest_text: List[str]
     i0: int
     i1: int
@@ -60,7 +62,9 @@ class _Chunk(_PlanElement):
     j1: int
     formal_line: int = -1
     shift: int = -1
-    # for decode only
+    # For decode:
+    to_del: List[str] = field(default_factory=lambda: [])
+    to_ins: List[str] = field(default_factory=lambda: [])
     fuzzy: int = -1
     error: str = ""
 

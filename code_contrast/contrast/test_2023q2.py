@@ -60,12 +60,9 @@ def test_expansion(enc: SMCEncoding):
     t = Contrast2023q2(enc)
     t.from_odm_dict(odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
-    # for _ in range(2):
-        # n_ctx = 250
         limit_aux_n = 100
         limit_ctx_n = n_ctx - limit_aux_n
         t.pack_context(1, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n)
-        # clear screen
         print(t.dump_r())
         print(len(t.r), " <= ", n_ctx)
         if len(t.r) > n_ctx:
