@@ -9,36 +9,37 @@ import difflib
 from cdifflib import CSequenceMatcher
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
-from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
 from code_contrast.print_utils import editclass_print, hlprint
 
 from collections import defaultdict
-from dataclasses import dataclass, field
 
 from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
-element_types = ["SYSTEM", "USER", "ASSISTANT", "FILE", "CHUNK", "TOOL", "OUTPUT"]
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, element_classes
 
 
 ADDITIONAL_CHECKS = True
 
 
-from code_contrast.contrast.contrast_2023q2 import Contrast2023q2
+from code_contrast.contrast_2023q2.packing import Packer
+from code_contrast.contrast_2023q2.el_msg import MsgElement
+from code_contrast.contrast_2023q2.from_orig_dest_message import from_odm_dict
 
 
 def test_messages(enc: SMCEncoding):
-    t = Contrast2023q2(enc)
-    t.add_msg("SYSTEM", "You are a coding assistant.")
-    t.add_msg("USER", "how are you?")
-    t.add_msg("ASSISTANT", "I'm not sure, I think I have bugs.")
+    t = Packer(enc)
+    t.add_to_plan(MsgElement("SYSTEM", "You are a coding assistant."))
+    t.add_to_plan(MsgElement("USER", "how are you?"))
+    t.add_to_plan(MsgElement("ASSISTANT", "I'm not sure, I think I have bugs."))
+    start_from_plan_n = 0
+    mask_from_plan_n = 0
     limit_ctx_n = 100
     limit_aux_n = 0
-    filled_ctx_n, filled_aux_n = t.pack_context(0, limit_ctx_n, limit_aux_n)
+    t.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
     print(hlprint(enc, t.r, t.m))
-    assert filled_ctx_n == len(t.r)
-    assert filled_aux_n == 0
+    assert t.cx.filled_ctx_n == len(t.r)
+    assert t.cx.filled_aux_n == 0
 
 
 def test_expansion(enc: SMCEncoding):
@@ -57,19 +58,21 @@ def test_expansion(enc: SMCEncoding):
         },
         "commitmsg": "Expansion test",
     }
-    t = Contrast2023q2(enc)
-    t.from_odm_dict(odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
+    packer = from_odm_dict(enc, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
+        start_from_plan_n = 0
+        mask_from_plan_n = 1
         limit_aux_n = 100
         limit_ctx_n = n_ctx - limit_aux_n
-        t.pack_context(1, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n)
-        print(t.dump_r())
-        print(len(t.r), " <= ", n_ctx)
-        if len(t.r) > n_ctx:
+        packer.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
+        print(packer.dump_r())
+        print(len(packer.r), " <= ", n_ctx)
+        if len(packer.r) > n_ctx:
             break
         time.sleep(1)
         # quit()
         # print("\033[2J")
+        # import IPython; IPython.embed(); quit()
 
 
 
