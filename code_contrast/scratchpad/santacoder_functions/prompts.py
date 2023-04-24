@@ -1,20 +1,17 @@
+from typing import Tuple
 
 
-class PrefSuffixSel:
-    def __init__(
-            self,
-            prefix: str,
-            suffix: str = "",
-            selection: str = ""
-    ):
-        self.prefix = prefix
-        self.suffix = suffix
-        self.selection = selection
+def prefix_suffix_sel(
+        prefix: str,
+        suffix: str = "",
+        selection: str = ""
+) -> Tuple[str, str, str]:
+    return prefix, suffix, selection
 
 
 def comment_each_line(
         selection: str,
-) -> PrefSuffixSel:
+) -> Tuple[str, str, str]:
     prefix = f"""
 DO:
 -----
@@ -96,6 +93,5 @@ CODE:
 ANSWER:
 -----
 """
-    p = PrefSuffixSel(prefix=prefix)
-    return p
+    return prefix_suffix_sel(prefix=prefix)
 
