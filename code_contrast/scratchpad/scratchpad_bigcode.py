@@ -3,7 +3,7 @@ import torch as th
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 
-from typing import List, Any, Dict, Set, Optional, Union
+from typing import List, Any, Dict, Set, Optional, Union, Tuple
 
 
 class ScratchpadBigCode(ScratchpadBase):
@@ -29,8 +29,11 @@ class ScratchpadBigCode(ScratchpadBase):
         self.function = function
         self.max_edits = max_edits
         self.sources = sources
-        self.prefix = ""
-        self.suffix = ""
+        self.__prefix, self.__suffix, self.__selection = "", "", ""
+
+        source = [text for fn, text in self.sources.items() if fn == self.cursor_file] or [""]
+        self._source = source[0]
+        self._completion = []
 
     def before_token_selection(self, m, **unused) -> Dict[str, Any]:
         return dict()
@@ -63,32 +66,70 @@ class ScratchpadBigCode(ScratchpadBase):
                     self.finish_reason = "stop-lflflf"
         return dict()
 
-    def prompt(self, T: int):
-        source = ""
-        for fn, text in self.sources.items():
-            if self.cursor_file == fn:
-                source = text
+    def _get_prefix_suffix_selection(self) -> Tuple[str, str, str]:
+        source = self._source
         lines = source.splitlines()
-        if len(lines)==0:
+        if len(lines) == 0:
             lines.append("\n")
         if lines[-1] == "" or lines[-1][-1] != "\n":
             lines[-1] += "\n"
         join_back = "\n".join(lines)
-        self.prefix = join_back[:self.cursor0]
-        self.suffix = join_back[self.cursor1:]
-        prompt: List[int] = []
-        prompt.append(self.enc.PREFIX)
-        prompt.extend(self.enc.encode(self.prefix))
-        prompt.append(self.enc.SUFFIX)
-        prompt.extend(self.enc.encode(self.suffix))
-        prompt.append(self.enc.INFILL)
+
+        prefix = join_back[:self.cursor0]
+        suffix = join_back[self.cursor1:]
+        selection = join_back[self.cursor0:self.cursor1]
+        return prefix, suffix, selection
+
+    @property
+    def prefix(self):
+        if not self.__prefix:
+            self.__prefix, _, _ = self._get_prefix_suffix_selection()
+        return self.__prefix
+
+    @prefix.setter
+    def prefix(self, value):
+        self.__prefix = value
+
+    @property
+    def suffix(self):
+        if not self.__suffix:
+            _, self.__suffix, _ = self._get_prefix_suffix_selection()
+        return self.__suffix
+
+    @suffix.setter
+    def suffix(self, value):
+        self.__suffix = value
+
+    @property
+    def selection(self) -> str:
+        if not isinstance(self.__selection, str):
+            _, _, self.__selection = self._get_prefix_suffix_selection()
+        return self.__selection
+
+    @selection.setter
+    def selection(self, value):
+        self.__selection = value
+
+    def prompt(self, T: int):
+        prefix, suffix, selection = self.prefix, self.suffix, self.selection
+        if selection:
+            prefix += selection
+
+        prompt: List[int] = [
+            self.enc.PREFIX,
+            *self.enc.encode(self.prefix),
+            self.enc.SUFFIX,
+            *self.enc.encode(self.suffix),
+            self.enc.INFILL,
+        ]
+
         print(self.enc.decode(prompt))
         # TODO: replace with file cutting
         max_prompt = T - self.max_tokens
         if len(prompt) > max_prompt:
             prompt = prompt[-max_prompt:]
         self._tokens = prompt[:]
-        self._completion = []
+        self._completion.clear()
         return prompt
 
     def completion(self, final: bool):
