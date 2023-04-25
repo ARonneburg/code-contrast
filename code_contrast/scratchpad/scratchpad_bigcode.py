@@ -112,9 +112,9 @@ class ScratchpadBigCode(ScratchpadBase):
 
         prompt: List[int] = [
             self.enc.PREFIX,
-            *self.enc.encode(self.prefix),
+            *self.enc.encode(prefix),
             self.enc.SUFFIX,
-            *self.enc.encode(self.suffix),
+            *self.enc.encode(suffix),
             self.enc.INFILL,
         ]
 
