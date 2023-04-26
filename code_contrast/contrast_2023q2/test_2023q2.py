@@ -16,30 +16,38 @@ from collections import defaultdict
 from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, element_classes
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, Format2023q2
+from code_contrast.contrast_2023q2 import format
 
 
 ADDITIONAL_CHECKS = True
 
 
 from code_contrast.contrast_2023q2.packing import Packer
+from code_contrast.contrast_2023q2.unpacking import Unpacker
 from code_contrast.contrast_2023q2.el_msg import MsgElement
 from code_contrast.contrast_2023q2.from_orig_dest_message import from_odm_dict
 
 
-def test_messages(enc: SMCEncoding):
-    t = Packer(enc)
-    t.add_to_plan(MsgElement("SYSTEM", "You are a coding assistant."))
-    t.add_to_plan(MsgElement("USER", "how are you?"))
-    t.add_to_plan(MsgElement("ASSISTANT", "I'm not sure, I think I have bugs."))
+def test_messages(fmt: Format2023q2):
+    enc = fmt.enc
+    pack = Packer(fmt)
+    pack.add_to_plan(MsgElement("SYSTEM", "You are a coding assistant."))
+    pack.add_to_plan(MsgElement("USER", "how are you?"))
+    pack.add_to_plan(MsgElement("ASSISTANT", "I'm not sure, I think I have bugs."))
     start_from_plan_n = 0
     mask_from_plan_n = 0
     limit_ctx_n = 100
     limit_aux_n = 0
-    t.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
-    print(hlprint(enc, t.r, t.m))
-    assert t.cx.filled_ctx_n == len(t.r)
-    assert t.cx.filled_aux_n == 0
+    pack.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
+    print(hlprint(enc, pack.r, pack.m))
+    assert pack.cx.filled_ctx_n == len(pack.r)
+    assert pack.cx.filled_aux_n == 0
+    print("parsing...")
+    u = Unpacker(fmt, [])
+    u.feed_tokens(pack.r)
+    for el in u.result:
+        print(el)
 
 
 def test_expansion(enc: SMCEncoding):
@@ -194,7 +202,8 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=
 
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
-    # test_messages(enc)
-    test_expansion(enc)
+    fmt = format.format_2023q2_escape(enc)
+    test_messages(fmt)
+    # test_expansion(enc)
     # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 

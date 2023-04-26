@@ -1,4 +1,4 @@
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, element_classes
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext
 from code_contrast.contrast_2023q2.el_file import FileElement
 from typing import List, Tuple
 

@@ -8,7 +8,7 @@ from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
 from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
 from code_contrast.print_utils import editclass_print, hlprint
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, element_classes
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext
 
 from collections import defaultdict
 from dataclasses import dataclass, field

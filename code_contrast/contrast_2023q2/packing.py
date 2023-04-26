@@ -3,26 +3,20 @@ import time
 import termcolor
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.print_utils import editclass_print, hlprint
+from code_contrast.print_utils import hlprint
 
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, element_classes
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, Format2023q2
 from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 
-element_types = ["SYSTEM", "USER", "ASSISTANT", "FILE", "CHUNK", "TOOL", "OUTPUT"]
-
-
-ADDITIONAL_CHECKS = True
-
-
 class Packer:
-    def __init__(self, enc: SMCEncoding):
-        self.enc: SMCEncoding = enc
+    def __init__(self, fmt: Format2023q2):
+        self.fmt = fmt
+        self.enc: SMCEncoding = fmt.enc
         self.r: List[int] = list()
         self.m: List[int] = list()
         self.plan: List[Element] = list()
         self.cx: Optional[ElementPackingContext] = None
-        self.enc = enc
 
     def add_to_plan(self, f: Element):
         self.plan.append(f)
@@ -35,7 +29,7 @@ class Packer:
         limit_aux_n: int,
         add_eot: bool
     ):
-        cx = ElementPackingContext(self.enc, limit_ctx_n, limit_aux_n)
+        cx = ElementPackingContext(self.fmt, limit_ctx_n, limit_aux_n)
         self.assign_random_line0_to_files()
         plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
         plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
@@ -59,12 +53,12 @@ class Packer:
             while 1:
                 any_still_expanding = False
                 for i, el in enumerate(self.plan[start_from_plan_n:]):
-                    print("expand %i %s" % (i, el.el_type), "filled_ctx_n %d < %d" % (cx.filled_ctx_n, cx.limit_ctx_n),  "filled_aux_n %d < %d" % (cx.filled_aux_n, cx.limit_aux_n))
+                    # print("expand %i %s" % (i, el.el_type), "filled_ctx_n %d < %d" % (cx.filled_ctx_n, cx.limit_ctx_n),  "filled_aux_n %d < %d" % (cx.filled_aux_n, cx.limit_aux_n))
                     any_still_expanding |= el.pack_inflate(cx, aux)
-                    print(
-                        " => total ctx %i aux %i," % (cx.filled_ctx_n, cx.filled_aux_n),
-                        "projected ctx_n+aux_n %i\n" % (cx.filled_ctx_n + cx.filled_aux_n),
-                    )
+                    # print(
+                    #     " => total ctx %i aux %i," % (cx.filled_ctx_n, cx.filled_aux_n),
+                    #     "projected ctx_n+aux_n %i\n" % (cx.filled_ctx_n + cx.filled_aux_n),
+                    # )
                 if not any_still_expanding:
                     break
         self.r, self.m = [], []
@@ -84,10 +78,10 @@ class Packer:
         if add_eot:
             self.r.extend([self.enc.ESCAPE, self.enc.EOT])
             self.m.extend([1, 1])
-        print("projected filled_ctx_n %d < limit %d" % (cx.filled_ctx_n, cx.limit_ctx_n))
-        print("projected filled_aux_n %d < limit %d" % (cx.filled_aux_n, cx.limit_aux_n))
-        print("projected filled_ctx_n+filled_aux_n = %d < %d" % (cx.filled_ctx_n + cx.filled_aux_n, limit_ctx_n + limit_aux_n))
-        print("                       real context = %d" % (len(self.r),))
+        # print("projected filled_ctx_n %d < limit %d" % (cx.filled_ctx_n, cx.limit_ctx_n))
+        # print("projected filled_aux_n %d < limit %d" % (cx.filled_aux_n, cx.limit_aux_n))
+        # print("projected filled_ctx_n+filled_aux_n = %d < %d" % (cx.filled_ctx_n + cx.filled_aux_n, limit_ctx_n + limit_aux_n))
+        # print("                       real context = %d" % (len(self.r),))
         assert len(self.r) == len(self.m)
         assert len(self.r) <= cx.filled_ctx_n + cx.filled_aux_n, "Packed tokens %d, upper bound on number of tokens %d. May be an internal bug, maybe toks_count_LINE is not the max value possible." % (len(self.r), cx.filled_ctx_n + cx.filled_aux_n)
         self.cx = cx   # keep for debugging

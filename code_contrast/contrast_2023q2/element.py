@@ -3,9 +3,18 @@ from code_contrast.encoding.smc_encoding import SMCEncoding
 from typing import List, Dict, Tuple, Callable, Type
 
 
-class ElementPackingContext:
-    def __init__(self, enc: SMCEncoding, limit_ctx_n: int, limit_aux_n: int):
+class Format2023q2:
+    def __init__(self, enc: SMCEncoding):
         self.enc = enc
+        self.element_start_seq: Dict[str, List[int]] = {}
+        self.element_classes: Dict[str, Type[Element]] = {}
+        self.is_special_token = lambda t: False
+
+
+class ElementPackingContext:
+    def __init__(self, fmt: Format2023q2, limit_ctx_n: int, limit_aux_n: int):
+        self.fmt = fmt
+        self.enc = fmt.enc
         self.limit_ctx_n = limit_ctx_n
         self.limit_aux_n = limit_aux_n
         self.filled_ctx_n = 0
@@ -14,8 +23,9 @@ class ElementPackingContext:
 
 
 class ElementUnpackContext:
-    def __init__(self, enc: SMCEncoding, lookup_file_by_tokens: Callable, lookup_file_by_line_number: Callable):
-        self.enc = enc
+    def __init__(self, fmt: Format2023q2, lookup_file_by_tokens: Callable, lookup_file_by_line_number: Callable):
+        self.fmt = fmt
+        self.enc = fmt.enc
         self.tokens: List[int] = list()
         self.lookup_file_by_tokens = lookup_file_by_tokens
         self.lookup_file_by_line_number = lookup_file_by_line_number
@@ -52,7 +62,8 @@ class Element:
 
 
     # Unpack: restore element from tokens
-    def unpack_init(self, cx: ElementUnpackContext):
+    @classmethod
+    def unpack_init(cx: ElementUnpackContext, init_tokens: List[int]):
         pass
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
@@ -66,7 +77,7 @@ class Element:
         """
         raise NotImplementedError()
 
-    def unpack_finish(self, cx: ElementUnpackContext):
+    def unpack_finish(self, cx: ElementUnpackContext) -> None:
         """
         Called after unpack_more_tokens() returns True, or the model hits max_tokens and cannot
         produce more tokens.
@@ -86,17 +97,4 @@ class Element:
             val_str = val_str[:40] + "... " if len(val_str) > 40 else val_str + " "
             ret += field + " " + termcolor.colored(val_str, "cyan") + " "
         return ret
-
-
-    # A way to find a subclass of Element
-    @staticmethod
-    def activation_token_sequence(enc: SMCEncoding) -> List[int]:
-        """
-        Tokens which should create an instance of subclass of this class.
-        """
-        raise NotImplementedError()
-
-
-element_classes: Dict[str, Type[Element]] = {
-}
 
