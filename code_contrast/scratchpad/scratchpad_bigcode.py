@@ -54,16 +54,11 @@ class ScratchpadBigCode(ScratchpadBase):
             self._completion.append(t)
         if chosen_token in self.stop_tokens:
             self.finish_reason = "stoptoken"
-        if len(self._tokens) > 3:
-            if self.stop_lf_lf and self._tokens[-1] == self.enc.LF and self._tokens[-2] == self.enc.LF:
-                self.finish_reason = "stop-lflf"
-            if self.stop_lf_lf_lf:
-                if self._tokens[-3] == self.enc.LF and self._tokens[-2] == self.enc.LF and self._tokens[-1] == self.enc.LF:
-                    self.finish_reason = "stop-lflflf"
-                elif self._tokens[-2] == self.enc.LFLF and self._tokens[-1] == self.enc.LF:
-                    self.finish_reason = "stop-lflflf"
-                elif self._tokens[-2] == self.enc.LFLF and self._tokens[-1] == self.enc.LFLF:
-                    self.finish_reason = "stop-lflflf"
+        t_str = self.enc.decode([t])
+        if self.stop_lf and t_str.startswith("\n"):
+            self.finish_reason = "stop-lf"
+        if self.stop_lf_lf and t_str.startswith("\n\n"):
+            self.finish_reason = "stop-lflf"
         return dict()
 
     def _get_prefix_suffix_selection(self) -> Tuple[str, str, str]:

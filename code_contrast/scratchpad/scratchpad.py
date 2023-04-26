@@ -41,10 +41,14 @@ class ScratchpadBase:
         else:
             stop_strings = tmp
         self.stop_tokens: Set[int] = set()
+        self.stop_lf = False
         self.stop_lf_lf = False
         self.stop_lf_lf_lf = False
         self.stream = stream
         for s in stop_strings:
+            if s == "\n":
+                self.stop_lf = True
+                continue
             if s == "\n\n":
                 self.stop_lf_lf = True
                 continue
