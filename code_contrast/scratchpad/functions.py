@@ -1,4 +1,4 @@
-from code_contrast.scratchpad.scratchpad_bigcode import ScratchpadBigCode
+from scratchpad_bigcode import ScratchpadBigCode
 from prompts import comment_each_line
 
 
