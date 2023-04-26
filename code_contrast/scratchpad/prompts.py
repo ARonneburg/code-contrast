@@ -11,7 +11,8 @@ def prefix_suffix_sel(
 
 def comment_each_line(
         selection: str,
-) -> Tuple[str, str, str]:
+):
+# -> Tuple[str, str, str]:
     prefix = f"""
 DO:
 -----
@@ -91,7 +92,6 @@ CODE:
 {selection}
 -----
 ANSWER:
------
-"""
-    return prefix_suffix_sel(prefix=prefix)
+-----"""
+    return prefix
 
