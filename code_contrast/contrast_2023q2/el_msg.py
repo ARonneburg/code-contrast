@@ -23,7 +23,7 @@ class MsgElement(Element):
         return MsgElement(init_txt, "")
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
-        while 1:
+        while len(cx.tokens):
             t = cx.tokens[0]
             if cx.fmt.is_special_token(t):
                 return True
@@ -36,4 +36,4 @@ class MsgElement(Element):
             t = t[1:]
         if t.endswith("\n"):
             t = t[:-1]
-        self.msg_role = t[1:]
+        self.msg_text = t

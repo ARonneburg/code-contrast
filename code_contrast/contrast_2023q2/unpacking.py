@@ -51,24 +51,26 @@ class Unpacker:
 
     def feed_tokens(self, toks: List[str]):
         self.cx.tokens.extend(toks)
-        while 1:
+        while len(self.cx.tokens):
             if self._constructing is not None:
+                # print("+1++++ ", self.cx.tokens)
                 finished = self._constructing.unpack_more_tokens(self.cx)
+                # print("+2++++ ", self.cx.tokens)
                 if finished:
                     el = self._constructing
                     el.unpack_finish(self.cx)
                     self._constructing = None
                     self.result.append(el)
                 else:
-                    print("over")
-                    return
+                    # print("over")
+                    break
             if self._constructing is None:
                 for klass, seq in self.fmt.element_start_seq.items():
                     l = len(seq)
-                    print("does %s start with %s?" % (self.cx.tokens, seq))
+                    # print("does %s start with %s?" % (self.cx.tokens, seq))
                     if self.cx.tokens[:l] == seq:
                         self._constructing = self.fmt.element_classes[klass].unpack_init(self.cx, seq)
-                        print("hurray started", self._constructing)
+                        # print("hurray started", self._constructing)
                         self.cx.tokens = self.cx.tokens[l:]
                         break
             if self._constructing is None:

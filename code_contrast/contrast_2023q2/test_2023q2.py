@@ -43,11 +43,15 @@ def test_messages(fmt: Format2023q2):
     print(hlprint(enc, pack.r, pack.m))
     assert pack.cx.filled_ctx_n == len(pack.r)
     assert pack.cx.filled_aux_n == 0
-    print("parsing...")
-    u = Unpacker(fmt, [])
-    u.feed_tokens(pack.r)
-    for el in u.result:
+    u1 = Unpacker(fmt, [])
+    u1.feed_tokens(pack.r)   # feed all
+    for el in u1.result:
         print(el)
+    u2 = Unpacker(fmt, [])
+    for t in pack.r:
+        u2.feed_tokens([t])   # feed one by one
+    for i in range(len(u2.result)):
+        assert repr(u2.result[i]) == repr(u1.result[i]), "%s != %s" % (repr(u2.result[i]), repr(u1.result[i]))
 
 
 def test_expansion(enc: SMCEncoding):
