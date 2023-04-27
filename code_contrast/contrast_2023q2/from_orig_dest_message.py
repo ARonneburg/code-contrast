@@ -1,5 +1,6 @@
 import random
 import time
+from code_contrast.contrast_2023q2.element import Format2023q2
 import termcolor
 
 from cdifflib import CSequenceMatcher
@@ -21,7 +22,7 @@ from code_contrast.contrast_2023q2.el_msg import MsgElement
 
 
 def from_odm_dict(
-    enc: SMCEncoding,
+    fmt: Format2023q2,
     odm: Dict[str, Any],
     # random_shrink = True,
     tight_shrink = False,
@@ -29,7 +30,7 @@ def from_odm_dict(
     exact_cx_lines1 = -1,
     external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None,
 ) -> Packer:
-    pack = Packer(enc)
+    pack = Packer(fmt)
     files1 = list(odm["orig"].keys())
     files2 = list(odm["dest"].keys())
     assert files1 == files2

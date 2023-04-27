@@ -9,12 +9,14 @@ class MsgElement(Element):
         self.msg_text = msg_text
         self._unpack_tokens: List[int] = []
 
+
     def pack_init(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
         toks = cx.enc.encode(self.msg_role + " " + self.msg_text + "\n")
         return toks, [1]*len(toks)
 
+
     @classmethod
-    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]):
+    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> None:
         t0 = init_tokens[0]
         if t0 == cx.enc.ESCAPE:
             init_txt = cx.enc.decode(init_tokens[1:])

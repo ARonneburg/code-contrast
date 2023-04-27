@@ -8,7 +8,7 @@ from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
 from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
 from code_contrast.print_utils import editclass_print, hlprint
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext
+from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
 
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -164,3 +164,7 @@ class FileElement(Element):
         t.extend(self.footer_toks)
         m.extend([1]*len(self.footer_toks))
         return t, m
+
+    @classmethod
+    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> None:
+        raise ValueError("Unpacking is not supported for FILE, because most likely it's not a complete file in the context. Reuse the file used to generate the context.")

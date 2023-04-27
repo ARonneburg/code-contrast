@@ -7,7 +7,7 @@ from code_contrast.print_utils import hlprint
 
 from code_contrast.contrast_2023q2.el_file import FileElement
 from code_contrast.contrast_2023q2.element import Format2023q2, Element, ElementPackingContext, ElementUnpackContext
-from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
+from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional, Type
 
     # def unpack_init(self, cx: ElementUnpackContext):
     #     pass
@@ -43,13 +43,13 @@ class Unpacker:
         self._constructing: Optional[Element] = None
         self._start_tokens = List[int]
 
-    def lookup_file_by_tokens(self, tokens: List[str]) -> FileElement:
+    def lookup_file_by_tokens(self, tokens: List[str]) -> Optional[FileElement]:
         return None
 
-    def lookup_file_by_line_number(self, line_number: int) -> FileElement:
+    def lookup_file_by_line_number(self, line_number: int) -> Optional[FileElement]:
         return None
 
-    def feed_tokens(self, toks: List[str]):
+    def feed_tokens(self, toks: List[int]):
         self.cx.tokens.extend(toks)
         while len(self.cx.tokens):
             if self._constructing is not None:
@@ -69,9 +69,10 @@ class Unpacker:
                     l = len(seq)
                     # print("does %s start with %s?" % (self.cx.tokens, seq))
                     if self.cx.tokens[:l] == seq:
-                        self._constructing = self.fmt.element_classes[klass].unpack_init(self.cx, seq)
+                        Class: Type[Element] = self.fmt.element_classes[klass]
+                        self._constructing = Class.unpack_init(self.cx, seq)
                         # print("hurray started", self._constructing)
-                        self.cx.tokens = self.cx.tokens[l:]
+                        del self.cx.tokens[:l]
                         break
             if self._constructing is None:
                 break

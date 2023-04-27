@@ -54,7 +54,7 @@ def test_messages(fmt: Format2023q2):
         assert repr(u2.result[i]) == repr(u1.result[i]), "%s != %s" % (repr(u2.result[i]), repr(u1.result[i]))
 
 
-def test_expansion(enc: SMCEncoding):
+def test_expansion(fmt: Format2023q2):
     orig = ["# this is line %d" % i for i in range(30)]
     dest = orig[:]
     dest[10] = "# changed line"
@@ -70,7 +70,7 @@ def test_expansion(enc: SMCEncoding):
         },
         "commitmsg": "Expansion test",
     }
-    packer = from_odm_dict(enc, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
+    packer = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
         start_from_plan_n = 0
         mask_from_plan_n = 1
@@ -208,6 +208,6 @@ if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
     test_messages(fmt)
-    # test_expansion(enc)
+    # test_expansion(fmt)
     # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 
