@@ -284,7 +284,7 @@ class SMCEncoding:
         if self._tokenizer:
             return self._tokenizer.encode(txt).ids
         elif self._sentencepiece_tokenizer:
-            return [self.bos_id] + self._sentencepiece_tokenizer.encode(txt)
+            return [self.bos_id] + self._sentencepiece_tokenizer.encode(txt)  #, add_special_tokens=False)
         else:
             result = []
             cursor = 0
