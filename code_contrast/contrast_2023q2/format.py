@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple, Callable, Type
 
 from code_contrast.contrast_2023q2.element import Format2023q2, Element, ElementPackingContext
 from code_contrast.contrast_2023q2.el_msg import MsgElement
+from code_contrast.contrast_2023q2.el_chunk import ChunkElement
 
 
 
@@ -13,11 +14,13 @@ def format_2023q2_escape(enc: SMCEncoding) -> Format2023q2:
     "SYSTEM": [enc.ESCAPE, *enc.encode("SYSTEM")],
     "USER": [enc.ESCAPE, *enc.encode("USER")],
     "ASSISTANT": [enc.ESCAPE, *enc.encode("ASSISTANT")],
+    "CHUNK": [enc.ESCAPE, *enc.encode("CHUNK")],
     }
     fmt.element_classes = {
     "SYSTEM": MsgElement,
     "USER": MsgElement,
     "ASSISTANT": MsgElement,
+    "CHUNK": ChunkElement,
     }
     ESCAPE = enc.ESCAPE
     fmt.is_special_token = lambda t: t==ESCAPE

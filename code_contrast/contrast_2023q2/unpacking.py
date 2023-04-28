@@ -75,6 +75,7 @@ class Unpacker:
                         del self.cx.tokens[:l]
                         break
             if self._constructing is None:
+                print("cannot start", self.cx.tokens)
                 break
 
     def finish(self):

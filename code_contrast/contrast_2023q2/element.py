@@ -9,6 +9,7 @@ class Format2023q2:
         self.element_start_seq: Dict[str, List[int]] = {}
         self.element_classes: Dict[str, Type[Element]] = {}
         self.is_special_token = lambda t: False
+        self.LINE_NUMBER_EACH = 15
 
 
 class ElementPackingContext:
@@ -34,6 +35,7 @@ class ElementUnpackContext:
 class Element:
     def __init__(self, el_type: str):
         self.el_type = el_type
+        self.located_at = -1
 
 
     # Pack: translate element into tokens
@@ -87,7 +89,7 @@ class Element:
 
     def __repr__(self) -> str:
         ret = termcolor.colored(self.el_type, "white", attrs=["bold"]) + " "
-        for field in dir(self):
+        for field in self.__dict__:
             if field.startswith("_") or field == "el_type":
                 continue
             val = getattr(self, field)

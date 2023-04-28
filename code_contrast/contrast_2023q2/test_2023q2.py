@@ -70,17 +70,28 @@ def test_expansion(fmt: Format2023q2):
         },
         "commitmsg": "Expansion test",
     }
-    packer = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
+    pack = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
         start_from_plan_n = 0
         mask_from_plan_n = 1
         limit_aux_n = 100
         limit_ctx_n = n_ctx - limit_aux_n
-        packer.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
-        print(packer.dump_r())
-        print(len(packer.r), " <= ", n_ctx)
-        if len(packer.r) > n_ctx:
+        pack.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
+        print(pack.dump_r())
+        print(len(pack.r), " <= ", n_ctx)
+        if len(pack.r) > n_ctx:
             break
+        # pack.plan[0] -- FILE
+        # pack.plan[1] -- MSG
+        # pack.plan[2] -- CHUNK
+        cut_at = 1
+        u1 = Unpacker(fmt, pack.plan[:cut_at])
+        tokens_cut = pack.r[pack.plan[cut_at + 1].located_at:]
+        print("tokens_cut", tokens_cut)
+        # print(fmt.enc.decode(tokens_cut))
+        u1.feed_tokens(tokens_cut)
+        for el in u1.result:
+            print(el)
         time.sleep(1)
         # quit()
         # print("\033[2J")
@@ -207,7 +218,7 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
-    test_messages(fmt)
-    # test_expansion(fmt)
+    # test_messages(fmt)
+    test_expansion(fmt)
     # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 

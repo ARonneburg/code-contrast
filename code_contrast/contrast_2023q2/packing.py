@@ -63,6 +63,7 @@ class Packer:
                     break
         self.r, self.m = [], []
         for i, el in enumerate(self.plan[start_from_plan_n:]):
+            el.located_at = len(self.r)
             self.r.extend(plan_toks[i])
             self.m.extend(plan_mask[i] if i >= mask_from_plan_n else [0]*len(plan_mask[i]))
             t, m = el.pack_finish(cx)

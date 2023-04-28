@@ -28,7 +28,7 @@ class _FileExpandingRange:
 
 
 class FileElement(Element):
-    def __init__(self, file_fn: str, file_lines: List[str], LINE_NUMBER_EACH=15):
+    def __init__(self, file_fn: str, file_lines: List[str]):
         super().__init__("FILE")
         self.file_fn = file_fn
         self.file_lines = file_lines
@@ -39,7 +39,6 @@ class FileElement(Element):
         self.lineheaders_aux_n = 0
         self.toks_count_LINE = -1
         self.expanding_ranges: List[_FileExpandingRange] = list()
-        self.LINE_NUMBER_EACH = LINE_NUMBER_EACH
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
         self.expanding_ranges.append(_FileExpandingRange(
@@ -76,11 +75,11 @@ class FileElement(Element):
         # Intersecting ranges will make the estimation larger than it should be, causing this
         # calculation to be more conservative => the end result is a less filled context.
         cnt_lineheaders_n = sum(
-            1 + (er.line1expand - er.line0expand + 1) // self.LINE_NUMBER_EACH
+            1 + (er.line1expand - er.line0expand + 1) // cx.fmt.LINE_NUMBER_EACH
             for er in self.expanding_ranges if not er.aux
         )
         aux_lineheaders_n = sum(
-            1 + (er.line1expand - er.line0expand + 1) // self.LINE_NUMBER_EACH
+            1 + (er.line1expand - er.line0expand + 1) // cx.fmt.LINE_NUMBER_EACH
             for er in self.expanding_ranges if er.aux
         )
         self.lineheaders_dirty = False
