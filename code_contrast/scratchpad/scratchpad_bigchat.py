@@ -79,10 +79,16 @@ class ScratchpadBigChat(ScratchpadBase):
         self._completion.clear()
         return self._tokens
 
+    @staticmethod
+    def _postprocess(delta: str) -> str:
+        if '\n\nHuman: ' in delta:
+            delta = delta.split("\n\nHuman: ")[0].strip()
+        return delta
+
     def completion(self, final: bool):
         result = {}
         delta = self.enc.decode(self._completion)
         self._completion.clear()
         result["chat__role"] = "assistant"
-        result["chat__delta"] = delta
+        result["chat__delta"] = self._postprocess(delta)
         return result
