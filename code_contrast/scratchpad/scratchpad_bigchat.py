@@ -25,6 +25,7 @@ class ScratchpadBigChat(ScratchpadBase):
         self.messages = messages
         self._prompt = ""
         self._completion = []
+        self._delta = []
         self._tokens = []
         self._tokens_produced = 0
 
@@ -38,14 +39,15 @@ class ScratchpadBigChat(ScratchpadBase):
             **unused
     ) -> Dict[str, Any]:
         self._tokens_produced += 1
-        if self._tokens_produced % 5 == 0:
-            self.needs_upload = True
+        # if self._tokens_produced % 5 == 0:
+            # self.needs_upload = True
         t = chosen_token.item()
         self._tokens.append(t)
         if chosen_token == self.enc.EOT:
             self.finish_reason = "eot"
         if not self.finish_reason:
             self._completion.append(t)
+            self._delta.append(t)
         if chosen_token in self.stop_tokens:
             self.finish_reason = "stoptoken"
         t_str = self.enc.decode([t])
@@ -72,23 +74,24 @@ class ScratchpadBigChat(ScratchpadBase):
                 p += "Assistant: " + msgdict["content"]
         p += "\n\n"
         p += "Assistant:"
-        print(p)
-        print(f'tokens_cnt: {len(p)}')
+        self.debuglog(p)
+        self.debuglog(f'tokens_cnt: {len(p)}')
         self._prompt = p
         self._tokens = self.enc.encode(p)
         self._completion.clear()
+        self._delta.clear()
         return self._tokens
-
-    @staticmethod
-    def _postprocess(delta: str) -> str:
-        if '\n\nHuman: ' in delta:
-            delta = delta.split("\n\nHuman: ")[0].strip()
-        return delta
 
     def completion(self, final: bool):
         result = {}
-        delta = self.enc.decode(self._completion)
-        self._completion.clear()
+        delta = self.enc.decode(self._delta)
+        completion = self.enc.decode(self._completion)
+        if '\n\nHuman: ' in completion:
+            self.finish_reason = "over"
+            completion = completion.split("\n\nHuman: ")[0].strip()
+            delta = delta.split("\n\nHuman: ")[0].strip()
+        self._delta.clear()
         result["chat__role"] = "assistant"
-        result["chat__delta"] = self._postprocess(delta)
+        result["chat__delta"] = completion
+        self.debuglog('delta \"%s\"' % delta)
         return result
