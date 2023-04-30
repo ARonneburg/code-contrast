@@ -81,10 +81,8 @@ class ScratchpadBigChat(ScratchpadBase):
                 p += "Human: " + msgdict["content"]
             else:
                 p += "Assistant: " + msgdict["content"]
-        p += "\n\n"
-        p += "Assistant:"
-        self.debuglog(p)
-        self.debuglog(f'tokens_cnt: {len(p)}')
+        p += "\n\nAssistant:"
+        self.debuglog(f'prompt tokens_cnt: {len(p)}')
         self._prompt = p
         self._tokens = self.enc.encode(p)
         self._completion.clear()

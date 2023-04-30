@@ -93,7 +93,7 @@ class ScratchpadBigCode(ScratchpadBase):
             *self.enc.encode(self.suffix),
             self.enc.INFILL,
         ]
-        print(self.enc.decode(prompt))
+        # print(self.enc.decode(prompt))
         # TODO: replace with file cutting
         max_prompt = T - self.max_tokens
         if len(prompt) > max_prompt:
@@ -191,6 +191,6 @@ class ScratchpadBigCode(ScratchpadBase):
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
         else:
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
-        print(f'SELECTION:\n{self.selection}')
-        print(f'\nCOMPLETION:\n{completion_text}')
+        self.debuglog("SELECTION: \"%s\"" % self.selection.replace("\n", "\\n"))
+        self.debuglog("COMPLETION: \"%s\"" % completion_text.replace("\n", "\\n"))
         return result
