@@ -25,7 +25,7 @@ class ScratchpadBigChat(ScratchpadBase):
         self.messages = messages
         self._prompt = ""
         self._completion = []
-        self._delta = []
+        self._completion_txt = ""
         self._tokens = []
         self._tokens_produced = 0
 
@@ -39,17 +39,26 @@ class ScratchpadBigChat(ScratchpadBase):
             **unused
     ) -> Dict[str, Any]:
         self._tokens_produced += 1
-        # if self._tokens_produced % 5 == 0:
-            # self.needs_upload = True
+        if self._tokens_produced % 5 == 0:
+            self.needs_upload = True
         t = chosen_token.item()
         self._tokens.append(t)
         if chosen_token == self.enc.EOT:
             self.finish_reason = "eot"
         if not self.finish_reason:
             self._completion.append(t)
-            self._delta.append(t)
         if chosen_token in self.stop_tokens:
             self.finish_reason = "stoptoken"
+
+        if not self.finish_reason:
+            self._completion_txt = self.enc.decode(self._completion)
+            if '\n\nHuman: ' in self._completion_txt:
+                self.finish_reason = "chat-stop-seq"
+                self._completion_txt = self._completion_txt.split("\n\nHuman: ")[0].rstrip()
+            if "\n\n-----" in self._completion_txt:
+                self.finish_reason = "chat-stop-seq"
+                self._completion_txt = self._completion_txt.split("\n\n-----")[0].rstrip()
+
         t_str = self.enc.decode([t])
         if self.stop_lf and t_str.startswith("\n"):
             self.finish_reason = "stop-lf"
@@ -79,19 +88,10 @@ class ScratchpadBigChat(ScratchpadBase):
         self._prompt = p
         self._tokens = self.enc.encode(p)
         self._completion.clear()
-        self._delta.clear()
         return self._tokens
 
     def completion(self, final: bool):
         result = {}
-        delta = self.enc.decode(self._delta)
-        completion = self.enc.decode(self._completion)
-        if '\n\nHuman: ' in completion:
-            self.finish_reason = "over"
-            completion = completion.split("\n\nHuman: ")[0].strip()
-            delta = delta.split("\n\nHuman: ")[0].strip()
-        self._delta.clear()
         result["chat__role"] = "assistant"
-        result["chat__delta"] = completion
-        self.debuglog('delta \"%s\"' % delta)
+        result["chat__content"] = self._completion_txt
         return result
