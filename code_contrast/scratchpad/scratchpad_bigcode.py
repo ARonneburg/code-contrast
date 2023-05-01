@@ -2,7 +2,7 @@ import torch as th
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
-from code_contrast.scratchpad import prompts, prompt_utils
+from code_contrast.scratchpad import bigcode_prompts, utils
 
 from typing import List, Any, Dict, Set, Optional, Union, Tuple
 
@@ -67,25 +67,18 @@ class ScratchpadBigCode(ScratchpadBase):
             if fn == self.cursor_file:
                 source = text
                 break
-        # lines = source.splitlines()
-        # if len(lines) == 0:
-        #     lines.append("\n")
-        # if lines[-1] == "" or lines[-1][-1] != "\n":
-        #     lines[-1] += "\n"
-        # join_back = "\n".join(lines)
-        self.cursor0, self.cursor1, self.selection = prompt_utils.adjust_selection(self.cursor0, self.cursor1, source)
-        self.prefix = source[:self.cursor0]
-        self.suffix = source[self.cursor1:]
-        # self.selection = join_back[self.cursor0:self.cursor1]
+        lines = source.splitlines()
+        if len(lines) == 0:
+            lines.append("\n")
+        if lines[-1] == "" or lines[-1][-1] != "\n":
+            lines[-1] += "\n"
+        join_back = "\n".join(lines)
+        self.cursor0, self.cursor1, self.selection = utils.full_line_selection(self.cursor0, self.cursor1, join_back)
+        self.prefix = join_back[:self.cursor0]
+        self.suffix = join_back[self.cursor1:]
 
     def prompt_infill(self, T: int):
         self._split_source_prefix_suffix_selection()
-        # prompt: List[int] = []
-        # prompt.append(self.enc.PREFIX)
-        # prompt.extend(self.enc.encode(self.prefix))
-        # prompt.append(self.enc.SUFFIX)
-        # prompt.extend(self.enc.encode(self.suffix))
-        # prompt.append(self.enc.INFILL)
         prompt: List[int] = [
             self.enc.PREFIX,
             *self.enc.encode(self.prefix),
@@ -104,37 +97,37 @@ class ScratchpadBigCode(ScratchpadBase):
 
     def prompt_comment_each_line(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.comment_each_line(self.selection)
+        prompt_txt = bigcode_prompts.comment_each_line(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 
     def prompt_make_code_shorter(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.make_code_shorter(self.selection)
+        prompt_txt = bigcode_prompts.make_code_shorter(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 
     def prompt_explain_code_block(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.explain_code_block(self.selection)
+        prompt_txt = bigcode_prompts.explain_code_block(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 
     def prompt_time_complexity(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.time_complexity(self.selection)
+        prompt_txt = bigcode_prompts.time_complexity(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 
     def prompt_fix_bug(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.fix_bug(self.selection)
+        prompt_txt = bigcode_prompts.fix_bug(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 
     def prompt_add_console_logs(self):
         self._split_source_prefix_suffix_selection()
-        prompt_txt = prompts.add_console_logs(self.selection)
+        prompt_txt = bigcode_prompts.add_console_logs(self.selection)
         prompt: List[int] = self.enc.encode(prompt_txt)
         return prompt
 

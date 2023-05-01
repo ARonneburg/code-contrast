@@ -10,7 +10,7 @@ from typing import List, Any, Dict, Set, Optional, Union, Tuple
 
 from code_contrast.scratchpad.scratchpad import ScratchpadBase
 from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.scratchpad.messages import base_msg
+from code_contrast.scratchpad.bigcode_chat_prompt import base_msg
 
 
 class ScratchpadBigChat(ScratchpadBase):
