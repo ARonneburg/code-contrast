@@ -61,7 +61,7 @@ class ScratchpadBigCode(ScratchpadBase):
             self.finish_reason = "stop-lflf"
         return dict()
 
-    def _split_source_prefix_suffix_selection(self):
+    def _split_source_prefix_suffix_selection(self, only_full_lines: bool = True):
         source = ""
         for fn, text in self.sources.items():
             if fn == self.cursor_file:
@@ -73,7 +73,10 @@ class ScratchpadBigCode(ScratchpadBase):
         if lines[-1] == "" or lines[-1][-1] != "\n":
             lines[-1] += "\n"
         join_back = "\n".join(lines)
-        self.cursor0, self.cursor1, self.selection = utils.full_line_selection(self.cursor0, self.cursor1, join_back)
+        if only_full_lines:
+            self.cursor0, self.cursor1, self.selection = utils.full_line_selection(self.cursor0, self.cursor1, join_back)
+        else:
+            self.selection = ""
         self.prefix = join_back[:self.cursor0]
         self.suffix = join_back[self.cursor1:]
 
