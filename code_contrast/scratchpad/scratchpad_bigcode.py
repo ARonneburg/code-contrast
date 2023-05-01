@@ -81,7 +81,7 @@ class ScratchpadBigCode(ScratchpadBase):
         self.suffix = join_back[self.cursor1:]
 
     def prompt_infill(self, T: int):
-        self._split_source_prefix_suffix_selection()
+        self._split_source_prefix_suffix_selection(only_full_lines=False)
         prompt: List[int] = [
             self.enc.PREFIX,
             *self.enc.encode(self.prefix),
@@ -89,7 +89,7 @@ class ScratchpadBigCode(ScratchpadBase):
             *self.enc.encode(self.suffix),
             self.enc.INFILL,
         ]
-        # print(self.enc.decode(prompt))
+        self.debuglog(self.enc.decode(prompt))
         # TODO: replace with file cutting
         max_prompt = T - self.max_tokens
         if len(prompt) > max_prompt:
