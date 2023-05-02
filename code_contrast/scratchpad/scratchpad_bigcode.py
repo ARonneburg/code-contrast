@@ -154,6 +154,8 @@ class ScratchpadBigCode(ScratchpadBase):
 
     @staticmethod
     def _postprocess(text: str) -> str:
+        if text.startswith('\n'):
+            text = text[1:]
         if text.endswith('\n'):
             text = text[:-1]
         return text
