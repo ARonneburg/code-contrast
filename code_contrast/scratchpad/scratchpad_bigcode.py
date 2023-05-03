@@ -90,11 +90,12 @@ class ScratchpadBigCode(ScratchpadBase):
             self.enc.INFILL,
         ]
         self.debuglog(self.enc.decode(prompt))
-        # TODO: replace with file cutting
-        max_prompt = T - self.max_tokens
-        if len(prompt) > max_prompt:
-            prompt = prompt[-max_prompt:]
-        self._tokens = prompt[:]
+        # # TODO: replace with file cutting
+        # max_prompt = T - self.max_tokens
+        # if len(prompt) > max_prompt:
+        #     prompt = prompt[-max_prompt:]
+        # self._tokens = prompt[:]
+        prompt = utils.trim_context_infill(self.enc.decode(prompt), self.enc, 2048)
         self._completion.clear()
         return prompt
 

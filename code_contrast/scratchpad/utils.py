@@ -1,6 +1,29 @@
 import re
 import torch as th
-from typing import Tuple
+from typing import Tuple, List
+
+from code_contrast.encoding.smc_encoding import SMCEncoding
+
+
+def trim_context_infill(
+        txt: str,
+        enc: SMCEncoding,
+        tokens_limit: int,
+) -> List[int]:
+    tokens = enc.encode(txt)
+    if len(tokens) < tokens_limit:
+        return tokens
+
+    res = []
+    tokens_lines = 0
+    for line in reversed(txt.splitlines()):
+        tokens_lines += len(enc.encode(line))
+        if tokens_lines > tokens_limit:
+            break
+        res.append(line)
+    txt = "\n".join(reversed(res))
+    tokens = enc.encode(txt)
+    return tokens
 
 
 def full_line_selection(cursor0: int, cursor1: int, txt: str) -> Tuple[int, int, str]:
