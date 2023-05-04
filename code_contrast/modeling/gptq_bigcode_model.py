@@ -47,8 +47,9 @@ def load_filename(filename: str, repo_id: str, cache_dir: str):
 
 def get_parameters(module: nn.Module, prefix: str = ""):
     for name in dir(module):
-        layer = getattr(module, name)
-        if isinstance(layer, nn.Parameter):
+        attr = getattr(module, name)
+        if (isinstance(module, QuantLinear) and name in ["qweight", "qzeros", "scales", "g_idx", "bias"]) or \
+                isinstance(attr, nn.Parameter):
             yield prefix + "." + name if prefix != "" else name
     for name, child in module.named_children():
         for result in get_parameters(child, prefix + "." + name if prefix != "" else name):
