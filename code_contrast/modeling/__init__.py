@@ -1,2 +1,3 @@
 from code_contrast.modeling.codify_model import CodifyModel
 from code_contrast.modeling.hf_model import HFModel
+from code_contrast.modeling.gptq_bigcode_model import GPTQBigCodeModel
