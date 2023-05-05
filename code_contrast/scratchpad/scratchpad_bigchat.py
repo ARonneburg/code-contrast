@@ -28,6 +28,7 @@ class ScratchpadBigChat(ScratchpadBase):
         self._completion_txt = ""
         self._tokens = []
         self._tokens_produced = 0
+        self._upload_moratorium = 5
 
     def before_token_selection(self, m, **unused) -> Dict[str, Any]:
         return dict()
@@ -39,8 +40,10 @@ class ScratchpadBigChat(ScratchpadBase):
             **unused
     ) -> Dict[str, Any]:
         self._tokens_produced += 1
-        if self._tokens_produced % 5 == 0:
+        if self._tokens_produced % 5 == 0 and self._upload_moratorium == 0:
             self.needs_upload = True
+        if self._upload_moratorium > 0:
+            self._upload_moratorium -= 1
         t = chosen_token.item()
         self._tokens.append(t)
         if chosen_token == self.enc.EOT:
@@ -60,6 +63,8 @@ class ScratchpadBigChat(ScratchpadBase):
                 self._completion_txt = self._completion_txt.split("\n\n-----")[0].rstrip()
 
         t_str = self.enc.decode([t])
+        if "\n" in t_str:
+            self._upload_moratorium = 5  # might be "Human:", don't want this partially uploaded
         if self.stop_lf and t_str.startswith("\n"):
             self.finish_reason = "stop-lf"
         if self.stop_lf_lf and t_str.startswith("\n\n"):
@@ -82,9 +87,9 @@ class ScratchpadBigChat(ScratchpadBase):
             else:
                 p += "Assistant: " + msgdict["content"]
         p += "\n\nAssistant:"
-        self.debuglog(f'prompt tokens_cnt: {len(p)}')
         self._prompt = p
         self._tokens = self.enc.encode(p)
+        self.debuglog("prompt %i chars -> %i tokens" % (len(p), len(self._tokens)))
         self._completion.clear()
         return self._tokens
 
