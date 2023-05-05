@@ -87,25 +87,6 @@ class GPTQBigCodeModel(nn.Module):
             }, strict=False)
         self._model = model.to(self.device)
 
-    @staticmethod
-    def _quantize(module: nn.Module, bits: int, groupsize: int, device: str,
-                  layer_types: Tuple[Any] = (nn.Conv2d, nn.Linear), prefix: str = ""):
-        if isinstance(module, QuantLinear):
-            return
-        for name in dir(module):
-            layer = getattr(module, name)
-            layer_name = prefix + "." + name if prefix != "" else name
-            if isinstance(layer, layer_types) and layer_name not in ["lm_head"]:
-                delattr(module, name)
-                quant_layer = QuantLinear(
-                    bits, groupsize,
-                    layer.in_features, layer.out_features,
-                    layer.bias is not None)
-                setattr(module, name, quant_layer.to(device))
-        for name, child in module.named_children():
-            GPTQBigCodeModel._quantize(child, bits, groupsize, device, layer_types,
-                     prefix + "." + name if prefix != "" else name)
-
     def forward(self, x, past_key_values: Optional = None, **unused):
         if past_key_values:
             past_key_values = [t[0] for t in past_key_values]
