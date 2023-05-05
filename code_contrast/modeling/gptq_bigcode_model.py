@@ -45,17 +45,6 @@ def load_filename(filename: str, repo_id: str, cache_dir: str):
         return torch.load(local_path)
 
 
-def get_parameters(module: nn.Module, prefix: str = ""):
-    for name in dir(module):
-        attr = getattr(module, name)
-        if (isinstance(module, QuantLinear) and name in ["qweight", "qzeros", "scales", "g_idx", "bias"]) or \
-                isinstance(attr, nn.Parameter):
-            yield prefix + "." + name if prefix != "" else name
-    for name, child in module.named_children():
-        for result in get_parameters(child, prefix + "." + name if prefix != "" else name):
-            yield result
-
-
 def quantize(module: nn.Module, bits: int, groupsize: int, device: str,
              layer_types: Tuple[Any] = (nn.Conv2d, nn.Linear), prefix: str = ""):
     if isinstance(module, QuantLinear):
@@ -89,9 +78,12 @@ class GPTQBigCodeModel(nn.Module):
         model.eval()
 
         quantize(model, bits, groupsize=128, device=self.device)
-        for name in get_parameters(model):
+        for name in ["transformer.wte.weight", "transformer.wpe.weight",
+                     "transformer.ln_f.weight", "transformer.ln_f.bias", "lm_head.weight"] + \
+                    [f"transformer.h.{idx}" for idx in range(len(model.transformer.h))]:
             model.load_state_dict({
-                name: load_filename(name, model_name, cache_dir).to(self.device)
+                pname: weights.to(self.device)
+                for pname, weights in load_filename(name, model_name, cache_dir).items()
             }, strict=False)
         self._model = model.to(self.device)
 
