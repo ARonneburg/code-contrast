@@ -13,8 +13,6 @@ if os.environ.get("BUILD_QUANT_CUDA", "0") == "1":
     try:
         import torch
         from torch.utils import cpp_extension
-        if not torch.cuda.is_available():
-            raise CudaIsNotAvailableError
         additional_setup_kwargs = {
             "ext_modules": [
                 cpp_extension.CUDAExtension("quant_cuda", [
@@ -26,8 +24,6 @@ if os.environ.get("BUILD_QUANT_CUDA", "0") == "1":
         }
     except ImportError:
         print("To build quant_cuda extension install torch")
-    except CudaIsNotAvailableError:
-        print("To build quant_cuda extension install cuda")
 
 
 setup(
