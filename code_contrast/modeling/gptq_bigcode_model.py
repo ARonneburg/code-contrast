@@ -74,7 +74,8 @@ class GPTQBigCodeModel(nn.Module):
         disable_torch_init()
 
         config = GPTBigCodeConfig.from_dict(load_filename("config.json", model_name, cache_dir))
-        model = GPTBigCodeForCausalLM(config)
+        config.torch_dtype = torch.float16
+        model = GPTBigCodeForCausalLM(config).to(torch.float16)
         model.eval()
 
         quantize(model, bits, groupsize=128, device=self.device)
