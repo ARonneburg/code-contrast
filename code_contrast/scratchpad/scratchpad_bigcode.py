@@ -82,11 +82,13 @@ class ScratchpadBigCode(ScratchpadBase):
 
     def prompt_infill(self, T: int):
         self._split_source_prefix_suffix_selection(only_full_lines=False)
+        prefix, suffix = utils.trim_context_infill(self.prefix, self.suffix, self.enc, 1900)
+
         prompt: List[int] = [
             self.enc.PREFIX,
-            *self.enc.encode(self.prefix),
+            *self.enc.encode(prefix),
             self.enc.SUFFIX,
-            *self.enc.encode(self.suffix),
+            *self.enc.encode(suffix),
             self.enc.INFILL,
         ]
         self.debuglog(self.enc.decode(prompt))
@@ -95,7 +97,6 @@ class ScratchpadBigCode(ScratchpadBase):
         # if len(prompt) > max_prompt:
         #     prompt = prompt[-max_prompt:]
         # self._tokens = prompt[:]
-        prompt = utils.trim_context_infill(self.enc.decode(prompt), self.enc, 2048)
         self._completion.clear()
         return prompt
 

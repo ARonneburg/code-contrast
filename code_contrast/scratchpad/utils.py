@@ -1,29 +1,37 @@
 import re
+from itertools import zip_longest
+
 import torch as th
-from typing import Tuple, List
+from typing import Tuple
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
 
 
 def trim_context_infill(
-        txt: str,
+        prefix: str,
+        suffix: str,
         enc: SMCEncoding,
-        tokens_limit: int,
-) -> List[int]:
-    tokens = enc.encode(txt)
-    if len(tokens) < tokens_limit:
-        return tokens
+        tokens_limit: int = 2048 - 100
+) -> Tuple[str, str]:
+    tokens = enc.encode(prefix+suffix)
+    print(f'tokens_cnt={len(tokens)}')
+    # if len(tokens) < tokens_limit:
+    #     return prefix, suffix
 
-    res = []
-    tokens_lines = 0
-    for line in reversed(txt.splitlines()):
-        tokens_lines += len(enc.encode(line))
-        if tokens_lines > tokens_limit:
-            break
-        res.append(line)
-    txt = "\n".join(reversed(res))
-    tokens = enc.encode(txt)
-    return tokens
+    lines_prefix = ((l, 'prefix') for l in reversed(prefix.splitlines()))
+    lines_suffix = ((l, 'suffix') for l in suffix.splitlines())
+
+    merged_lines = [val for pair in zip_longest(lines_prefix, lines_suffix) for val in pair if val]
+
+    lines_prefix_p, lines_suffix_p = [], []
+    for line, t in merged_lines:
+        if (line_tok_cnt := len(enc.encode(line))) >= tokens_limit: break
+        lines_prefix_p.append(line) if t == 'prefix' else lines_suffix_p.append(line)
+        tokens_limit -= line_tok_cnt
+
+    prefix = '\n'.join(reversed(lines_prefix_p))
+    suffix = '\n'.join(lines_suffix_p)
+    return prefix, suffix
 
 
 def full_line_selection(cursor0: int, cursor1: int, txt: str) -> Tuple[int, int, str]:
