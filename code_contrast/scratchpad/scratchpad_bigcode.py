@@ -1,3 +1,4 @@
+import termcolor
 import torch as th
 
 from code_contrast.encoding.smc_encoding import SMCEncoding
@@ -73,6 +74,13 @@ class ScratchpadBigCode(ScratchpadBase):
         if lines[-1] == "" or lines[-1][-1] != "\n":
             lines[-1] += "\n"
         join_back = "\n".join(lines)
+        print(
+            termcolor.colored(join_back[:self.cursor0], "red"),
+            "|",
+            termcolor.colored(join_back[self.cursor0:self.cursor1], "magenta"),
+            "|",
+            termcolor.colored(join_back[self.cursor1:], "red"),
+        )
         if only_full_lines:
             self.cursor0, self.cursor1, self.selection = utils.full_line_selection(self.cursor0, self.cursor1, join_back)
         else:
@@ -82,21 +90,25 @@ class ScratchpadBigCode(ScratchpadBase):
 
     def prompt_infill(self, T: int):
         self._split_source_prefix_suffix_selection(only_full_lines=False)
-        prefix, suffix = utils.trim_context_infill(self.prefix, self.suffix, self.enc, 1900)
-
+        prefix_cut, suffix_cut = utils.trim_context_infill(self.prefix, self.suffix, self.enc, T - self.max_tokens)
+        prefix_cut_tokens = self.enc.encode(prefix_cut)
+        suffix_cut_tokens = self.enc.encode(suffix_cut)
         prompt: List[int] = [
             self.enc.PREFIX,
-            *self.enc.encode(prefix),
+            *prefix_cut_tokens,
             self.enc.SUFFIX,
-            *self.enc.encode(suffix),
+            *suffix_cut_tokens,
             self.enc.INFILL,
         ]
-        self.debuglog(self.enc.decode(prompt))
-        # # TODO: replace with file cutting
-        # max_prompt = T - self.max_tokens
-        # if len(prompt) > max_prompt:
-        #     prompt = prompt[-max_prompt:]
-        # self._tokens = prompt[:]
+        print(
+            termcolor.colored(self.enc.decode(prompt), "yellow")
+        )
+        self.debuglog(
+            "INFILL PROMPT: prefix %i chars -> cut to %i tokens, suffix %i chars -> cut to %i tokens, final prompt %i < n_ctx %i - max %i" %
+            (len(self.prefix), len(prefix_cut_tokens), len(self.suffix), len(suffix_cut_tokens), len(prompt),
+             T, self.max_tokens,
+            )
+        )
         self._completion.clear()
         return prompt
 

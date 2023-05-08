@@ -11,13 +11,8 @@ def trim_context_infill(
         prefix: str,
         suffix: str,
         enc: SMCEncoding,
-        tokens_limit: int = 2048 - 100
+        tokens_limit: int
 ) -> Tuple[str, str]:
-    tokens = enc.encode(prefix+suffix)
-    print(f'tokens_cnt={len(tokens)}')
-    # if len(tokens) < tokens_limit:
-    #     return prefix, suffix
-
     lines_prefix = ((l, 'prefix') for l in reversed(prefix.splitlines()))
     lines_suffix = ((l, 'suffix') for l in suffix.splitlines())
 
