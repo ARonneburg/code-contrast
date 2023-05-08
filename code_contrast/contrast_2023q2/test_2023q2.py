@@ -90,16 +90,23 @@ def test_expansion(fmt: Format2023q2):
         # pack.plan[0] -- FILE
         # pack.plan[1] -- MSG
         # pack.plan[2] -- CHUNK
-        cut_at = 1
-        u1 = Unpacker(fmt, pack.plan[:cut_at], cut_at)
-        tokens_cut = pack.r[pack.plan[cut_at + 1].located_at:]
-        print("tokens_cut", tokens_cut)
+        parse_from = 1   # that includes MSG
+        cut_at_tokens = pack.plan[parse_from].located_at
+        u1 = Unpacker(fmt, pack.plan[:parse_from], cut_at_tokens)
+        tokens_cut = pack.r[cut_at_tokens:]
+        # print("tokens_cut", tokens_cut)
         # print(fmt.enc.decode(tokens_cut))
         u1.feed_tokens(tokens_cut)
-        for el in u1.result:
+        print(termcolor.colored("orig plan:", "red"))
+        for el in pack.plan[1:]:
             print(el)
+        print(termcolor.colored("untok result:", "red"))
+        for el in u1.result[1:]:
+            print(el)
+        print()
+        print()
+        quit()
         time.sleep(1)
-        # quit()
         # print("\033[2J")
         # import IPython; IPython.embed(); quit()
 
@@ -224,7 +231,7 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
-    test_messages(fmt)
-    # test_expansion(fmt)
+    # test_messages(fmt)
+    test_expansion(fmt)
     # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 

@@ -65,8 +65,8 @@ class Element:
 
     # Unpack: restore element from tokens
     @classmethod
-    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> None:
-        pass
+    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> 'Element':
+        raise NotImplementedError()
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
         """

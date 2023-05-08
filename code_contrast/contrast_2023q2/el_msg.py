@@ -16,7 +16,7 @@ class MsgElement(Element):
 
 
     @classmethod
-    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> None:
+    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> Element:
         t0 = init_tokens[0]
         if t0 == cx.enc.ESCAPE:
             init_txt = cx.enc.decode(init_tokens[1:])

@@ -33,6 +33,7 @@ class FileElement(Element):
         self.file_fn = file_fn
         self.file_lines = file_lines
         self.file_lines_toks: List[Optional[List[int]]] = []
+        self.formal_line0: int = -1   # §LINE1337 first line
         self.footer_toks = list()
         self.lineheaders_dirty = True
         self.lineheaders_cnt_n = 0
@@ -143,6 +144,7 @@ class FileElement(Element):
         return anything_works
 
     def pack_finish(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
+        assert self.formal_line0 > 0, "call assign_random_line0_to_files() first"
         t, m = [], []
         assert len(self.file_lines) == len(self.file_lines_toks)
         line_countdown = 0
@@ -165,5 +167,5 @@ class FileElement(Element):
         return t, m
 
     @classmethod
-    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> None:
+    def unpack_init(cls, cx: ElementUnpackContext, init_tokens: List[int]) -> Element:
         raise ValueError("Unpacking is not supported for FILE, because most likely it's not a complete file in the context. Reuse the file used to generate the context.")
