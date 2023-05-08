@@ -90,7 +90,9 @@ class ScratchpadBigCode(ScratchpadBase):
 
     def prompt_infill(self, T: int):
         self._split_source_prefix_suffix_selection(only_full_lines=False)
+        # print(f'BEFORE:\nPREFIX:\n{self.prefix}\nSUFFIX:\n{self.suffix}\n')
         prefix_cut, suffix_cut = utils.trim_context_infill(self.prefix, self.suffix, self.enc, T - self.max_tokens)
+        # print(f'\nAFTER:\nPREFIX:\n{prefix_cut}\nSUFFIX:\n{suffix_cut}')
         prefix_cut_tokens = self.enc.encode(prefix_cut)
         suffix_cut_tokens = self.enc.encode(suffix_cut)
         prompt: List[int] = [

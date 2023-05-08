@@ -13,8 +13,8 @@ def trim_context_infill(
         enc: SMCEncoding,
         tokens_limit: int
 ) -> Tuple[str, str]:
-    lines_prefix = ((l, 'prefix') for l in reversed(prefix.splitlines()))
-    lines_suffix = ((l, 'suffix') for l in suffix.splitlines())
+    lines_prefix = ((l, 'prefix') for l in reversed(prefix.split('\n')))
+    lines_suffix = ((l, 'suffix') for l in suffix.split('\n'))
 
     merged_lines = [val for pair in zip_longest(lines_prefix, lines_suffix) for val in pair if val]
 
@@ -99,5 +99,5 @@ def simple_stoplist_cut(orig: str, dest: str, head: int, tail: int) -> str:
         ])
         for _ in re.finditer(re_patterns, line.lower()):
             return "".join(result)
-        result.append(line if idx > 0 else line[head-expanded_head:])
+        result.append(line if idx > 0 else line[head - expanded_head:])
     return "".join(result)
