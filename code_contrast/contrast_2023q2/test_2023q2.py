@@ -32,9 +32,13 @@ from code_contrast.contrast_2023q2.from_orig_dest_message import from_odm_dict
 def test_messages(fmt: Format2023q2):
     enc = fmt.enc
     pack = Packer(fmt)
-    pack.add_to_plan(MsgElement("SYSTEM", "You are a coding assistant."))
-    pack.add_to_plan(MsgElement("USER", "how are you?"))
-    pack.add_to_plan(MsgElement("ASSISTANT", "I'm not sure, I think I have bugs."))
+    orig_plan = [
+        MsgElement("SYSTEM", "You are a coding assistant."),
+        MsgElement("USER", "how are you?"),
+        MsgElement("ASSISTANT", "I'm not sure, I think I have bugs."),
+    ]
+    for p in orig_plan:
+        pack.add_to_plan(p)
     start_from_plan_n = 0
     mask_from_plan_n = 0
     limit_ctx_n = 100
@@ -43,15 +47,17 @@ def test_messages(fmt: Format2023q2):
     print(hlprint(enc, pack.r, pack.m))
     assert pack.cx.filled_ctx_n == len(pack.r)
     assert pack.cx.filled_aux_n == 0
-    u1 = Unpacker(fmt, [])
+    u1 = Unpacker(fmt, [], 0)
     u1.feed_tokens(pack.r)   # feed all
     for el in u1.result:
-        print(el)
-    u2 = Unpacker(fmt, [])
+        print(el)   # same as repr(e)
+    u2 = Unpacker(fmt, [], 0)
     for t in pack.r:
         u2.feed_tokens([t])   # feed one by one
     for i in range(len(u2.result)):
         assert repr(u2.result[i]) == repr(u1.result[i]), "%s != %s" % (repr(u2.result[i]), repr(u1.result[i]))
+        assert repr(u2.result[i]) == repr(orig_plan[i]), "%s != %s" % (repr(u2.result[i]), repr(orig_plan[i]))
+    print("test_messages PASSED")
 
 
 def test_expansion(fmt: Format2023q2):
@@ -85,7 +91,7 @@ def test_expansion(fmt: Format2023q2):
         # pack.plan[1] -- MSG
         # pack.plan[2] -- CHUNK
         cut_at = 1
-        u1 = Unpacker(fmt, pack.plan[:cut_at])
+        u1 = Unpacker(fmt, pack.plan[:cut_at], cut_at)
         tokens_cut = pack.r[pack.plan[cut_at + 1].located_at:]
         print("tokens_cut", tokens_cut)
         # print(fmt.enc.decode(tokens_cut))
@@ -218,7 +224,7 @@ def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
-    # test_messages(fmt)
-    test_expansion(fmt)
+    test_messages(fmt)
+    # test_expansion(fmt)
     # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
 

@@ -31,7 +31,7 @@ from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional, Type
     #     pass
 
 class Unpacker:
-    def __init__(self, fmt: Format2023q2, initial_elements: List[Element]):
+    def __init__(self, fmt: Format2023q2, initial_elements: List[Element], position: int):
         self.result = initial_elements[:]
         self.fmt = fmt
         self.enc = fmt.enc
@@ -41,7 +41,7 @@ class Unpacker:
             lookup_file_by_line_number=self.lookup_file_by_line_number,
         )
         self._constructing: Optional[Element] = None
-        self._start_tokens = List[int]
+        self._position = position
 
     def lookup_file_by_tokens(self, tokens: List[str]) -> Optional[FileElement]:
         return None
@@ -54,7 +54,11 @@ class Unpacker:
         while len(self.cx.tokens):
             if self._constructing is not None:
                 # print("+1++++ ", self.cx.tokens)
+                toks_before = len(self.cx.tokens)
                 finished = self._constructing.unpack_more_tokens(self.cx)
+                toks_after = len(self.cx.tokens)
+                assert toks_after <= toks_before
+                self._position += toks_before - toks_after
                 # print("+2++++ ", self.cx.tokens)
                 if finished:
                     el = self._constructing
@@ -69,13 +73,16 @@ class Unpacker:
                     l = len(seq)
                     # print("does %s start with %s?" % (self.cx.tokens, seq))
                     if self.cx.tokens[:l] == seq:
+                        # print("starting with", self.cx.tokens, " -> ", klass)
                         Class: Type[Element] = self.fmt.element_classes[klass]
                         self._constructing = Class.unpack_init(self.cx, seq)
+                        self._constructing.located_at = self._position
                         # print("hurray started", self._constructing)
                         del self.cx.tokens[:l]
+                        self._position += l
                         break
             if self._constructing is None:
-                print("cannot start", self.cx.tokens)
+                # print("cannot start", self.cx.tokens)
                 break
 
     def finish(self):
