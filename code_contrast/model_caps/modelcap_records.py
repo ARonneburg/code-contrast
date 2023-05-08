@@ -56,7 +56,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("free-chat"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         catch_question_mark=True,
     ),
 
@@ -69,7 +69,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("add-console-logs"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         model_fixed_intent="Add console logs",
     ),
 
@@ -82,7 +82,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("comment-each-line"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         model_fixed_intent="Comment each line",
     ),
 
@@ -95,7 +95,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("explain-code-block"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         model_fixed_intent="Explain Code",
     ),
 
@@ -120,7 +120,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("fix-bug"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         model_fixed_intent="Fix Bug",
     ),
 
@@ -133,7 +133,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("make-code-shorter"),
-        model=["gpt3.5", "gpt4", "starcoder", "starcoder/15b/debug"],
+        model=["gpt3.5", "gpt4", "starcoder"],
         model_fixed_intent="Make Code Shorter",
     ),
 
