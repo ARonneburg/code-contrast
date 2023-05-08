@@ -13,8 +13,8 @@ def trim_context_infill(
         enc: SMCEncoding,
         tokens_limit: int
 ) -> Tuple[str, str]:
-    lines_prefix = ((l, 'prefix') for l in reversed(prefix.split('\n')))
-    lines_suffix = ((l, 'suffix') for l in suffix.split('\n'))
+    lines_prefix = [(l, 'prefix') for l in reversed(prefix.splitlines(keepends=True))]
+    lines_suffix = [(l, 'suffix') for l in suffix.splitlines(keepends=True)]
 
     merged_lines = [val for pair in zip_longest(lines_prefix, lines_suffix) for val in pair if val]
 
@@ -24,8 +24,8 @@ def trim_context_infill(
         lines_prefix_p.append(line) if t == 'prefix' else lines_suffix_p.append(line)
         tokens_limit -= line_tok_cnt
 
-    prefix = '\n'.join(reversed(lines_prefix_p))
-    suffix = '\n'.join(lines_suffix_p)
+    prefix = ''.join(reversed(lines_prefix_p))
+    suffix = ''.join(lines_suffix_p)
     return prefix, suffix
 
 
