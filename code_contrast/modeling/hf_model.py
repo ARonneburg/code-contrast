@@ -12,12 +12,16 @@ class HFModel(nn.Module):
             self,
             checkpoint: str,
             device: str,
+            cache_dir: Optional[str] = None,
             use_auth_token: Optional[str] = None
     ):
         super().__init__()
         self.device = device
         self.model = AutoModelForCausalLM.from_pretrained(
-            checkpoint, trust_remote_code=True, use_auth_token=use_auth_token
+            checkpoint,
+            cache_dir=cache_dir,
+            trust_remote_code=True,
+            use_auth_token=use_auth_token,
         ).to(device)
         self.encoding = SMCEncoding(checkpoint.replace('/', '_'))
 
