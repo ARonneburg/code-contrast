@@ -24,12 +24,11 @@ class ElementPackingContext:
 
 
 class ElementUnpackContext:
-    def __init__(self, fmt: Format2023q2, lookup_file_by_tokens: Callable, lookup_file_by_line_number: Callable):
+    def __init__(self, fmt: Format2023q2, lookup_file: Callable):
         self.fmt = fmt
         self.enc = fmt.enc
         self.tokens: List[int] = list()
-        self.lookup_file_by_tokens = lookup_file_by_tokens
-        self.lookup_file_by_line_number = lookup_file_by_line_number
+        self.lookup_file = lookup_file
 
 
 class Element:

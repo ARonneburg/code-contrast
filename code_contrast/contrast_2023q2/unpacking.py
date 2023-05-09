@@ -37,17 +37,14 @@ class Unpacker:
         self.enc = fmt.enc
         self.cx = ElementUnpackContext(
             fmt,
-            lookup_file_by_tokens=self.lookup_file_by_tokens,
-            lookup_file_by_line_number=self.lookup_file_by_line_number,
+            lookup_file=self.lookup_file,
         )
         self._constructing: Optional[Element] = None
         self._position = position
 
-    def lookup_file_by_tokens(self, tokens: List[str]) -> Optional[FileElement]:
-        return None
-
-    def lookup_file_by_line_number(self, line_number: int) -> Optional[FileElement]:
-        return None
+    def lookup_file(self, todel: str, line_n: int) -> List[Tuple[FileElement, int, int]]:
+        print("lookup_file", todel, line_n)
+        return []
 
     def feed_tokens(self, toks: List[int]):
         self.cx.tokens.extend(toks)
