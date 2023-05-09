@@ -26,8 +26,12 @@ class HFModel(nn.Module):
         self.encoding = SMCEncoding(checkpoint.replace('/', '_'))
 
     @classmethod
-    def from_pretrained(self, path: str, device: str = "cuda", **unused):
-        return HFModel(path, device)
+    def from_pretrained(self,
+                        path: str,
+                        device: str = "cuda",
+                        cache_dir: Optional[str] = None,
+                        **unused):
+        return HFModel(path, device, cache_dir=cache_dir)
 
     def forward(self, x, past_key_values: Optional = None, **unused):
         output = self.model(x, past_key_values=past_key_values)
