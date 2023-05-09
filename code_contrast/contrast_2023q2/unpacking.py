@@ -43,8 +43,18 @@ class Unpacker:
         self._position = position
 
     def lookup_file(self, todel: str, line_n: int) -> List[Tuple[FileElement, int, int]]:
-        print("lookup_file", todel, line_n)
-        return []
+        print("lookup_file \"%s\" formal_line=%i" % (todel.replace("\n", "\\n"), line_n))
+        lst = []
+        for potential_file in self.result:
+            if potential_file.el_type == "FILE":
+                file: FileElement = potential_file
+                cursor = 0
+                for _ in range(5):  # pointless to return more than 5
+                    idx = file._file_lines_joined.index(todel)
+                    if idx >= 0:
+                        line_n = file._file_lines_joined.count("\n", 0, idx)
+                        lst.append((file, line_n, 0))
+        return lst
 
     def feed_tokens(self, toks: List[int]):
         self.cx.tokens.extend(toks)

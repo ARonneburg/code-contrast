@@ -91,8 +91,8 @@ class ChunkElement(Element):
                     print("special token, must be next element, chunk over")
                     return True
             if self._state == STATE_LINE_N:
-                t0_txt = cx.enc.decode([t0])
-                if "\n" in t0_txt:
+                t1_txt = cx.enc.decode([t1])
+                if "\n" in t1_txt:
                     self._switch_state(cx, STATE_INS)
                 else:
                     self._line_tokens.append(t0)
@@ -107,17 +107,41 @@ class ChunkElement(Element):
         return False
 
     def unpack_finish(self, cx: ElementUnpackContext):
-        to_del_str = cx.enc.decode(self._del_tokens)
-        if not to_del_str.startswith("\n"):
-            raise ValueError("there is no \n in between CHUNK and deleted text")
-        self.to_del = to_del_str[1:].splitlines(keepends=True)
-        self.to_ins = cx.enc.decode(self._ins_tokens).splitlines(keepends=True)
+        to_del_str = self._del_str(cx)
+        to_ins_str = self._ins_str(cx)
+        self.to_del = to_del_str.splitlines(keepends=True)
+        self.to_ins = to_ins_str.splitlines(keepends=True)
+
+    def _del_str(self, cx):
+        if len(self._del_tokens):
+            to_del_str = cx.enc.decode(self._del_tokens)
+            if not to_del_str.startswith("\n"):
+                raise ValueError("there is no \\n in between CHUNK and deleted text")
+        else:
+            to_del_str = "\n"
+        return to_del_str[1:]
+
+    def _ins_str(self, cx):
+        if len(self._ins_tokens):
+            to_ins_str = cx.enc.decode(self._ins_tokens)
+            if not to_ins_str.startswith("\n"):
+                raise ValueError("there is no \\n in between LINE and inserted text")
+        else:
+            to_ins_str = "\n"
+        return to_ins_str[1:]
 
     def _locate_this_chunk_in_file_above(self, cx: ElementUnpackContext) -> bool:
         if not self.orig_file:
             lst: List[Tuple[FileElement, int, int]] = []
-            lst = cx.lookup_file(self._del_tokens, self._formal_line)    # possible locations
+            to_del_str = self._del_str(cx)
+            lst = cx.lookup_file(to_del_str, self._formal_line)    # possible locations
             print("lst", lst)
+            if len(lst) == 1:
+                print("found one file")
+                file, i0, i1 = lst[0]
+                self.orig_file = file
+                self.i0 = i0
+                self.i1 = i1
             # self.orig_file = file
             # self.i0 = i0
             # self.i1 = i1

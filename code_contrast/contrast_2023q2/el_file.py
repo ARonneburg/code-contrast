@@ -40,6 +40,7 @@ class FileElement(Element):
         self.lineheaders_aux_n = 0
         self.toks_count_LINE = -1
         self.expanding_ranges: List[_FileExpandingRange] = list()
+        self._file_lines_joined: str = ""
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
         self.expanding_ranges.append(_FileExpandingRange(
@@ -164,6 +165,7 @@ class FileElement(Element):
             line_countdown -= 1
         t.extend(self.footer_toks)
         m.extend([1]*len(self.footer_toks))
+        self._file_lines_joined = "".join(self.file_lines)
         return t, m
 
     @classmethod
