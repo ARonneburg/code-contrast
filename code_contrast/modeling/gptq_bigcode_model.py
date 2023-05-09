@@ -69,6 +69,9 @@ class GPTQBigCodeModel(nn.Module):
     def __init__(self, model_name: str, bits: int, device: str, cache_dir: Optional[str]):
         super().__init__()
 
+        if device == "cpu":
+            raise ValueError("model is not implemented on cpu")
+
         self.encoding = SMCEncoding("bigcode_largemodel")
         self.device = device
         disable_torch_init()
