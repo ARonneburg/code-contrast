@@ -15,7 +15,6 @@ class ChunkElement(Element):
         self.i1 = -1
         self.j0 = -1
         self.j1 = -1
-        self.shift = -1
         self.to_del: List[str] = []
         self.to_ins: List[str] = []
         self.fuzzy = -1
@@ -41,12 +40,11 @@ class ChunkElement(Element):
 
     def pack_init(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
         assert self.orig_file
-        assert self.orig_file.formal_line0 >= 0
         t = cx.enc.encode("CHUNK\n")
         for line in range(self.i0, self.i1):
             line_t = cx.enc.encode(self.orig_file.file_lines[line])
             t.extend(line_t)
-        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (self.orig_file.formal_line0 + self.i0)))
+        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (self.i0,)))
         for j in range(self.j0, self.j1):
             t.extend(cx.enc.encode(self.dest_text[j]))
         m = [1]*len(t)
@@ -60,7 +58,6 @@ class ChunkElement(Element):
             seq = cx.enc.encode(s)
             assert len(seq) == 1, "\"%s\" is not one token %s, first token is \"%s\"" % (s, seq, cx.enc.decode([seq[0]]).replace("\n", "\\n"))
             return seq[0]
-        # el._tok_CHUNK = should_be_single_token("CHUNK")
         el._tok_LINE = should_be_single_token("LINE")
         el._state = STATE_DEL
         return el
@@ -73,9 +70,11 @@ class ChunkElement(Element):
                 self._chunk_line = int(tmp)
             except ValueError:
                 pass   # stays -1
-            print("LINE collected self._line_tokens \"%s\" -> _chunk_line %i" % (tmp.replace("\n", "\\n"), self._chunk_line))
+            # print("LINE collected self._line_tokens \"%s\" -> _chunk_line %i" % (tmp.replace("\n", "\\n"), self._chunk_line))
             self._line_tokens = []
-            self._locate_this_chunk_in_file_above(cx, force=True)   # fills fuzzy correctly
+            # fills fuzzy correctly, even if we know the location already
+            self._locate_this_chunk_in_file_above(cx, force=True)
+            # self.i2 = self.i1 + self._del_str -- not needed really
         self._state = new_state
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:

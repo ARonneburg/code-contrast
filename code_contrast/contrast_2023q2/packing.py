@@ -30,7 +30,6 @@ class Packer:
         add_eot: bool
     ):
         cx = ElementPackingContext(self.fmt, limit_ctx_n, limit_aux_n)
-        self.assign_random_line0_to_files()
         plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
         plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
         cx.filled_ctx_n = 2 if add_eot else 0   # two is ESCAPE, EOT
@@ -86,14 +85,6 @@ class Packer:
         assert len(self.r) == len(self.m)
         assert len(self.r) <= cx.filled_ctx_n + cx.filled_aux_n, "Packed tokens %d, upper bound on number of tokens %d. May be an internal bug, maybe toks_count_LINE is not the max value possible." % (len(self.r), cx.filled_ctx_n + cx.filled_aux_n)
         self.cx = cx   # keep for debugging
-
-    def assign_random_line0_to_files(self):
-        MINLINE = 1000
-        MAXLINE = 9000
-        for f in self.plan:
-            if f.el_type == "FILE":
-                # f.formal_line0 = random.randint(MINLINE, MAXLINE)
-                f.formal_line0 = 0
 
     def dump_r(self):
         return hlprint(self.enc, self.r, self.m)

@@ -98,17 +98,14 @@ def test_expansion(fmt: Format2023q2):
         # print(fmt.enc.decode(tokens_cut))
         u1.feed_tokens(tokens_cut)
         print(termcolor.colored("orig plan:", "red"))
-        for el in pack.plan[1:]:
+        for el in pack.plan:
             print(el)
         print(termcolor.colored("untok result:", "red"))
-        for el in u1.result[1:]:
+        for el in u1.result:
             print(el)
         print()
-        print()
-        quit()
         time.sleep(1)
         # print("\033[2J")
-        # import IPython; IPython.embed(); quit()
 
 
 

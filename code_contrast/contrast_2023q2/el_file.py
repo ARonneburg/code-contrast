@@ -33,11 +33,10 @@ class FileElement(Element):
         self.file_fn = file_fn
         self.file_lines = file_lines
         self.file_lines_toks: List[Optional[List[int]]] = []
-        self.formal_line0: int = -1   # §LINE1337 first line
         self.footer_toks = list()
-        self.lineheaders_dirty = True
-        self.lineheaders_cnt_n = 0
-        self.lineheaders_aux_n = 0
+        self._lineheaders_dirty = True
+        self._lineheaders_cnt_n = 0
+        self._lineheaders_aux_n = 0
         self.toks_count_LINE = -1
         self.expanding_ranges: List[_FileExpandingRange] = list()
         self._file_lookup_helper_string: str = ""
@@ -58,9 +57,9 @@ class FileElement(Element):
         m.extend([1]*len(header_toks))
         # Each range has a header, until it bumps into another range above when exanding
         self.file_lines_toks = [None] * len(self.file_lines)
-        self.lineheaders_dirty = True
-        self.lineheaders_cnt_n = 0
-        self.lineheaders_aux_n = 0
+        self._lineheaders_dirty = True
+        self._lineheaders_cnt_n = 0
+        self._lineheaders_aux_n = 0
         for er in self.expanding_ranges:
             er.works0 = True
             er.works1 = True
@@ -72,7 +71,7 @@ class FileElement(Element):
         return t, m
 
     def _estimate_line_header_tokens(self, cx: ElementPackingContext):
-        if not self.lineheaders_dirty:
+        if not self._lineheaders_dirty:
             return
         # Intersecting ranges will make the estimation larger than it should be, causing this
         # calculation to be more conservative => the end result is a less filled context.
@@ -84,13 +83,13 @@ class FileElement(Element):
             1 + (er.line1expand - er.line0expand + 1) // cx.fmt.LINE_NUMBER_EACH
             for er in self.expanding_ranges if er.aux
         )
-        self.lineheaders_dirty = False
-        if cnt_lineheaders_n != self.lineheaders_cnt_n:
-            cx.filled_ctx_n += (cnt_lineheaders_n - self.lineheaders_cnt_n) * self.toks_count_LINE
-            self.lineheaders_cnt_n = cnt_lineheaders_n
-        if aux_lineheaders_n != self.lineheaders_aux_n:
-            cx.filled_aux_n += (aux_lineheaders_n - self.lineheaders_aux_n) * self.toks_count_LINE
-            self.lineheaders_aux_n = aux_lineheaders_n
+        self._lineheaders_dirty = False
+        if cnt_lineheaders_n != self._lineheaders_cnt_n:
+            cx.filled_ctx_n += (cnt_lineheaders_n - self._lineheaders_cnt_n) * self.toks_count_LINE
+            self._lineheaders_cnt_n = cnt_lineheaders_n
+        if aux_lineheaders_n != self._lineheaders_aux_n:
+            cx.filled_aux_n += (aux_lineheaders_n - self._lineheaders_aux_n) * self.toks_count_LINE
+            self._lineheaders_aux_n = aux_lineheaders_n
 
     def _lines2toks_helper(self, cx: ElementPackingContext, l: int, aux: int):
         self._estimate_line_header_tokens(cx)
@@ -113,7 +112,7 @@ class FileElement(Element):
         if not take_line:
             return False
         self.file_lines_toks[l] = t
-        self.lineheaders_dirty = True
+        self._lineheaders_dirty = True
         return True
 
     def pack_inflate(self, cx: ElementPackingContext, aux: bool) -> bool:
@@ -145,7 +144,6 @@ class FileElement(Element):
         return anything_works
 
     def pack_finish(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
-        assert self.formal_line0 >= 0, "call assign_random_line0_to_files() first"
         t, m = [], []
         assert len(self.file_lines) == len(self.file_lines_toks)
         self._file_lookup_helper_string = ""
@@ -157,7 +155,7 @@ class FileElement(Element):
                 self._file_lookup_helper_string += "\n"
                 continue
             if line_countdown == 0:
-                line_n_t = [cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (line_n + self.formal_line0))
+                line_n_t = [cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (line_n,))
                 t.extend(line_n_t)
                 m.extend([1 if not first_header else 0]*len(line_n_t))
                 first_header = False
