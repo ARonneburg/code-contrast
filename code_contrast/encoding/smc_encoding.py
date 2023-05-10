@@ -282,7 +282,7 @@ class SMCEncoding:
 
     def encode(self, txt: str) -> List[int]:
         if self._tokenizer:
-            return self._tokenizer.encode(txt).ids
+            return self._tokenizer.encode(txt).ids  #, add_special_tokens=False)
         elif self._sentencepiece_tokenizer:
             return [self.bos_id] + self._sentencepiece_tokenizer.encode(txt)
         else:
