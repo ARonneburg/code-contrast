@@ -23,7 +23,7 @@ class Unpacker:
         self._position = position
 
     def lookup_file(self, todel: str, external_line_n: int) -> List[Tuple[FileElement, int, int]]:
-        print("lookup_file \"%s\" external_line_n=%i" % (todel.replace("\n", "\\n"), external_line_n))
+        # print("lookup_file \"%s\" external_line_n=%i" % (todel.replace("\n", "\\n"), external_line_n))
         if len(todel) == 0:
             return []
         lst = []

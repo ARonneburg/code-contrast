@@ -63,7 +63,7 @@ class ChunkElement(Element):
         return el
 
     def _switch_state(self, cx, new_state):
-        print(" -- switch state %s -> %s" % (self._state, new_state))
+        # print(" -- switch state %s -> %s" % (self._state, new_state))
         if self._state == STATE_LINE_N:
             tmp = cx.enc.decode(self._line_tokens)
             try:
@@ -88,7 +88,7 @@ class ChunkElement(Element):
                     del cx.tokens[:2]
                     continue
                 else:
-                    print("special token, must be next element, chunk over")
+                    # print("special token, must be next element, chunk over")
                     return True
             if self._state == STATE_LINE_N:
                 t1_txt = cx.enc.decode([t1])
@@ -135,7 +135,7 @@ class ChunkElement(Element):
             to_del_str = self._del_str(cx)
             lst = cx.lookup_file(to_del_str, self._chunk_line)    # possible locations
             if len(lst) == 1:
-                print("found one match for todel")
+                # print("found one match for todel")
                 file, i0, fuzzy = lst[0]
                 self.orig_file = file
                 self.i0 = i0

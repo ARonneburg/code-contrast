@@ -33,25 +33,25 @@ class FileElement(Element):
         self.file_fn = file_fn
         self.file_lines = file_lines
         self.file_lines_toks: List[Optional[List[int]]] = []
-        self.footer_toks = list()
+        self._footer_toks = list()
         self._lineheaders_dirty = True
         self._lineheaders_cnt_n = 0
         self._lineheaders_aux_n = 0
-        self.toks_count_LINE = -1
-        self.expanding_ranges: List[_FileExpandingRange] = list()
+        self._toks_count_LINE = -1
+        self._expanding_ranges: List[_FileExpandingRange] = list()
         self._file_lookup_helper_string: str = ""
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
-        self.expanding_ranges.append(_FileExpandingRange(
+        self._expanding_ranges.append(_FileExpandingRange(
             line0=max(0, min(line0, len(self.file_lines) - 1)),
             line1=max(0, min(line1, len(self.file_lines) - 1)),
             aux=aux))
 
     def pack_init(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
         header_toks = cx.enc.encode("FILE " + self.file_fn.replace("\n", "\\n") + "\n")
-        self.toks_count_LINE = len([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % 1234))
-        self.footer_toks = [cx.enc.ESCAPE] + cx.enc.encode("/FILE\n")
-        cx.filled_aux_n += len(self.footer_toks)
+        self._toks_count_LINE = len([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % 1234))
+        self._footer_toks = [cx.enc.ESCAPE] + cx.enc.encode("/FILE\n")
+        cx.filled_aux_n += len(self._footer_toks)
         t, m = [], []
         t.extend(header_toks)
         m.extend([1]*len(header_toks))
@@ -60,7 +60,7 @@ class FileElement(Element):
         self._lineheaders_dirty = True
         self._lineheaders_cnt_n = 0
         self._lineheaders_aux_n = 0
-        for er in self.expanding_ranges:
+        for er in self._expanding_ranges:
             er.works0 = True
             er.works1 = True
             er.line0expand = er.line0
@@ -77,18 +77,18 @@ class FileElement(Element):
         # calculation to be more conservative => the end result is a less filled context.
         cnt_lineheaders_n = sum(
             1 + (er.line1expand - er.line0expand + 1) // cx.fmt.LINE_NUMBER_EACH
-            for er in self.expanding_ranges if not er.aux
+            for er in self._expanding_ranges if not er.aux
         )
         aux_lineheaders_n = sum(
             1 + (er.line1expand - er.line0expand + 1) // cx.fmt.LINE_NUMBER_EACH
-            for er in self.expanding_ranges if er.aux
+            for er in self._expanding_ranges if er.aux
         )
         self._lineheaders_dirty = False
         if cnt_lineheaders_n != self._lineheaders_cnt_n:
-            cx.filled_ctx_n += (cnt_lineheaders_n - self._lineheaders_cnt_n) * self.toks_count_LINE
+            cx.filled_ctx_n += (cnt_lineheaders_n - self._lineheaders_cnt_n) * self._toks_count_LINE
             self._lineheaders_cnt_n = cnt_lineheaders_n
         if aux_lineheaders_n != self._lineheaders_aux_n:
-            cx.filled_aux_n += (aux_lineheaders_n - self._lineheaders_aux_n) * self.toks_count_LINE
+            cx.filled_aux_n += (aux_lineheaders_n - self._lineheaders_aux_n) * self._toks_count_LINE
             self._lineheaders_aux_n = aux_lineheaders_n
 
     def _lines2toks_helper(self, cx: ElementPackingContext, l: int, aux: int):
@@ -117,7 +117,7 @@ class FileElement(Element):
 
     def pack_inflate(self, cx: ElementPackingContext, aux: bool) -> bool:
         anything_works = False
-        for ri, er in enumerate(self.expanding_ranges):
+        for ri, er in enumerate(self._expanding_ranges):
             if er.aux != aux:
                 continue
             if er.works0:
@@ -164,9 +164,8 @@ class FileElement(Element):
             m.extend([1]*len(line_toks))
             self._file_lookup_helper_string += self.file_lines[line_n]
             line_countdown -= 1
-        t.extend(self.footer_toks)
-        m.extend([1]*len(self.footer_toks))
-        # self._file_lines_joined = "".join(self.file_lines)
+        t.extend(self._footer_toks)
+        m.extend([1]*len(self._footer_toks))
         return t, m
 
     @classmethod
