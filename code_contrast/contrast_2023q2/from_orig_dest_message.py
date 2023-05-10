@@ -79,7 +79,7 @@ def _run_diff_for_single_file(f: FileElement, dest_text: List[str], exact_cx_lin
             continue
         assert op in ["replace", "joined", "insert", "delete"], op
         c = ChunkElement(f)
-        c.assign_from_diff(dest_text, i0, i1, j0, j1)
+        c.assign_from_diff(dest_text[j0:j1], i0, i1, j0, j1)
         chunks.append(c)
         f.add_expanding_range(line0=i0, line1=i1-1, aux=0)
     return chunks

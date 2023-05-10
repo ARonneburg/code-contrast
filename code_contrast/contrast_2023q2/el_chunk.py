@@ -1,6 +1,6 @@
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
 from code_contrast.contrast_2023q2.el_file import FileElement
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 
 STATE_DEL, STATE_LINE_N, STATE_INS = "DEL", "LINE_N", "INS"
@@ -10,11 +10,7 @@ class ChunkElement(Element):
     def __init__(self, orig_file: Optional[FileElement]):
         super().__init__("CHUNK")
         self.orig_file = orig_file
-        self.dest_text: List[str] = []
-        self.i0 = -1
-        self.i1 = -1
-        self.j0 = -1
-        self.j1 = -1
+        self.line_n = -1
         self.to_del: List[str] = []
         self.to_ins: List[str] = []
         self.fuzzy = -1
@@ -26,27 +22,24 @@ class ChunkElement(Element):
         self._tok_LINE = -1
         self._chunk_line = -1
         self._line_tokens: List[int] = []
+        self._line_n_patched = -1
 
-    def assign_from_diff(self, dest_text: List[str], i0, i1, j0, j1):
+    def assign_from_diff(self, replacement_text: List[str], i0, i1, j0, j1):
         assert self.orig_file
-        self.dest_text = dest_text
-        self.i0 = i0
-        self.i1 = i1
-        self.j0 = j0
-        self.j1 = j1
+        self.replacement_text = replacement_text
+        self.line_n = i0
         self.to_del = self.orig_file.file_lines[i0:i1]
-        self.to_ins = dest_text[j0:j1]
+        self.to_ins = replacement_text
         self.fuzzy = 0
 
     def pack_init(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
         assert self.orig_file
         t = cx.enc.encode("CHUNK\n")
-        for line in range(self.i0, self.i1):
-            line_t = cx.enc.encode(self.orig_file.file_lines[line])
-            t.extend(line_t)
-        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (self.i0,)))
-        for j in range(self.j0, self.j1):
-            t.extend(cx.enc.encode(self.dest_text[j]))
+        for j in range(len(self.to_del)):
+            t.extend(cx.enc.encode(self.to_del[j]))
+        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (self.line_n,)))
+        for j in range(len(self.to_ins)):
+            t.extend(cx.enc.encode(self.to_ins[j]))
         m = [1]*len(t)
         return t, m
 
@@ -74,7 +67,6 @@ class ChunkElement(Element):
             self._line_tokens = []
             # fills fuzzy correctly, even if we know the location already
             self._locate_this_chunk_in_file_above(cx, force=True)
-            # self.i2 = self.i1 + self._del_str -- not needed really
         self._state = new_state
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
@@ -129,18 +121,40 @@ class ChunkElement(Element):
             to_ins_str = "\n"
         return to_ins_str[1:]
 
-    def _locate_this_chunk_in_file_above(self, cx: ElementUnpackContext, force: bool) -> bool:
+    def _locate_this_chunk_in_file_above(self, cx: ElementUnpackContext, force: bool):
         if not self.orig_file or force:
             lst: List[Tuple[FileElement, int, int]] = []
             to_del_str = self._del_str(cx)
             lst = cx.lookup_file(to_del_str, self._chunk_line)    # possible locations
             if len(lst) == 1:
                 # print("found one match for todel")
-                file, i0, fuzzy = lst[0]
+                file, line_n, fuzzy = lst[0]
                 self.orig_file = file
-                self.i0 = i0
+                self.line_n = line_n
                 self.fuzzy = fuzzy
-            # self.orig_file = file
-            # self.i0 = i0
-            # self.i1 = i1
-        return False
+
+
+def apply_chunks(plan: List[Element]) -> Dict[str, List[str]]:
+    code: Dict[str, List[str]] = {}
+    for el in plan:
+        if isinstance(ch := el, ChunkElement):
+            ch._line_n_patched = ch.line_n
+    ch: ChunkElement
+    for plan_i, ch in enumerate(plan):
+        if not isinstance(ch, ChunkElement):
+            continue
+        fn = ch.orig_file.file_fn
+        if fn not in code:
+            code[fn] = ch.orig_file.file_lines[:]
+        gets_deleted = code[fn][ch.line_n : ch.line_n + len(ch.to_del)]
+        assert gets_deleted == ch.to_del, "Oops sanity check failed.\n----------existing code:\n%s\n----------new code:\n%s" % ("\n".join(code[fn]), "\n".join(ch.to_del))
+        code[fn][ch.line_n : ch.line_n + len(ch.to_del)] = ch.to_ins
+        for forward_ch in plan[plan_i+1:]:
+            if not isinstance(forward_ch, ChunkElement):
+                continue
+            if forward_ch.line_n <= ch.line_n:
+                continue
+            forward_ch.line_n += (len(ch.to_ins) - len(ch.to_del))
+    return code
+
+

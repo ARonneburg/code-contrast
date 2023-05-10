@@ -18,6 +18,7 @@ from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, Format2023q2
 from code_contrast.contrast_2023q2 import format
+from code_contrast.contrast_2023q2 import el_chunk
 
 
 ADDITIONAL_CHECKS = True
@@ -78,6 +79,8 @@ def test_expansion(fmt: Format2023q2):
     }
     pack = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
+        time.sleep(1)
+        print("\033[2J")
         start_from_plan_n = 0
         mask_from_plan_n = 1
         limit_aux_n = 100
@@ -104,8 +107,11 @@ def test_expansion(fmt: Format2023q2):
         for el in u1.result:
             print(el)
         print()
-        time.sleep(1)
-        # print("\033[2J")
+        code = el_chunk.apply_chunks(u1.result)
+        for fn, txt in code.items():
+            # print(termcolor.colored("patched %s:" % fn, "red"))
+            # print("".join(txt))
+            assert "".join(txt) in [odm["dest"][fn], odm["dest"][fn] + "\n"]
 
 
 
