@@ -40,7 +40,7 @@ class FileElement(Element):
         self.lineheaders_aux_n = 0
         self.toks_count_LINE = -1
         self.expanding_ranges: List[_FileExpandingRange] = list()
-        self._file_lines_joined: str = ""
+        self._file_lookup_helper_string: str = ""
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
         self.expanding_ranges.append(_FileExpandingRange(
@@ -145,14 +145,16 @@ class FileElement(Element):
         return anything_works
 
     def pack_finish(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
-        assert self.formal_line0 > 0, "call assign_random_line0_to_files() first"
+        assert self.formal_line0 >= 0, "call assign_random_line0_to_files() first"
         t, m = [], []
         assert len(self.file_lines) == len(self.file_lines_toks)
+        self._file_lookup_helper_string = ""
         line_countdown = 0
         first_header = True
         for line_n, line_toks in enumerate(self.file_lines_toks):
             if not line_toks:
                 line_countdown = 0
+                self._file_lookup_helper_string += "\n"
                 continue
             if line_countdown == 0:
                 line_n_t = [cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (line_n + self.formal_line0))
@@ -162,10 +164,11 @@ class FileElement(Element):
                 line_countdown = 15
             t.extend(line_toks)
             m.extend([1]*len(line_toks))
+            self._file_lookup_helper_string += self.file_lines[line_n]
             line_countdown -= 1
         t.extend(self.footer_toks)
         m.extend([1]*len(self.footer_toks))
-        self._file_lines_joined = "".join(self.file_lines)
+        # self._file_lines_joined = "".join(self.file_lines)
         return t, m
 
     @classmethod

@@ -25,7 +25,7 @@ class ChunkElement(Element):
         self._ins_tokens: List[int] = []
         self._del_tokens: List[int] = []
         self._tok_LINE = -1
-        self._formal_line = -1
+        self._chunk_line = -1
         self._line_tokens: List[int] = []
 
     def assign_from_diff(self, dest_text: List[str], i0, i1, j0, j1):
@@ -41,7 +41,7 @@ class ChunkElement(Element):
 
     def pack_init(self, cx: ElementPackingContext) -> Tuple[List[int], List[int]]:
         assert self.orig_file
-        assert self.orig_file.formal_line0 > 0
+        assert self.orig_file.formal_line0 >= 0
         t = cx.enc.encode("CHUNK\n")
         for line in range(self.i0, self.i1):
             line_t = cx.enc.encode(self.orig_file.file_lines[line])
@@ -70,18 +70,19 @@ class ChunkElement(Element):
         if self._state == STATE_LINE_N:
             tmp = cx.enc.decode(self._line_tokens)
             try:
-                self._formal_line = int(tmp)
+                self._chunk_line = int(tmp)
             except ValueError:
                 pass   # stays -1
-            print("LINE collected self._line_tokens \"%s\" -> _formal_line %i" % (tmp.replace("\n", "\\n"), self._formal_line))
+            print("LINE collected self._line_tokens \"%s\" -> _chunk_line %i" % (tmp.replace("\n", "\\n"), self._chunk_line))
             self._line_tokens = []
+            self._locate_this_chunk_in_file_above(cx, force=True)   # fills fuzzy correctly
         self._state = new_state
 
     def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
         while len(cx.tokens) > 1:
             t0 = cx.tokens[0]
             t1 = cx.tokens[1]
-            print("chunk.unpack %5i \"%s\"" % (t0, cx.enc.decode([t0]).replace("\n", "\\n")))
+            # print("chunk.unpack %5i \"%s\"" % (t0, cx.enc.decode([t0]).replace("\n", "\\n")))
             if cx.fmt.is_special_token(t0):
                 if self._state == STATE_DEL and t1 == self._tok_LINE:
                     self._switch_state(cx, STATE_LINE_N)
@@ -92,16 +93,15 @@ class ChunkElement(Element):
                     return True
             if self._state == STATE_LINE_N:
                 t1_txt = cx.enc.decode([t1])
+                self._line_tokens.append(t0)
                 if "\n" in t1_txt:
                     self._switch_state(cx, STATE_INS)
-                else:
-                    self._line_tokens.append(t0)
                 del cx.tokens[0]
             elif self._state == STATE_INS:
                 self._ins_tokens.append(cx.tokens.pop(0))
             elif self._state == STATE_DEL:
                 self._del_tokens.append(cx.tokens.pop(0))
-                self._locate_this_chunk_in_file_above(cx)
+                self._locate_this_chunk_in_file_above(cx, force=False)
             else:
                 assert 0, "unknown state %s" % self._state
         return False
@@ -130,18 +130,17 @@ class ChunkElement(Element):
             to_ins_str = "\n"
         return to_ins_str[1:]
 
-    def _locate_this_chunk_in_file_above(self, cx: ElementUnpackContext) -> bool:
-        if not self.orig_file:
+    def _locate_this_chunk_in_file_above(self, cx: ElementUnpackContext, force: bool) -> bool:
+        if not self.orig_file or force:
             lst: List[Tuple[FileElement, int, int]] = []
             to_del_str = self._del_str(cx)
-            lst = cx.lookup_file(to_del_str, self._formal_line)    # possible locations
-            print("lst", lst)
+            lst = cx.lookup_file(to_del_str, self._chunk_line)    # possible locations
             if len(lst) == 1:
-                print("found one file")
-                file, i0, i1 = lst[0]
+                print("found one match for todel")
+                file, i0, fuzzy = lst[0]
                 self.orig_file = file
                 self.i0 = i0
-                self.i1 = i1
+                self.fuzzy = fuzzy
             # self.orig_file = file
             # self.i0 = i0
             # self.i1 = i1

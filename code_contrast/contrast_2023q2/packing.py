@@ -92,7 +92,8 @@ class Packer:
         MAXLINE = 9000
         for f in self.plan:
             if f.el_type == "FILE":
-                f.formal_line0 = random.randint(MINLINE, MAXLINE)
+                # f.formal_line0 = random.randint(MINLINE, MAXLINE)
+                f.formal_line0 = 0
 
     def dump_r(self):
         return hlprint(self.enc, self.r, self.m)

@@ -9,26 +9,6 @@ from code_contrast.contrast_2023q2.el_file import FileElement
 from code_contrast.contrast_2023q2.element import Format2023q2, Element, ElementPackingContext, ElementUnpackContext
 from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional, Type
 
-    # def unpack_init(self, cx: ElementUnpackContext):
-    #     pass
-
-    # def unpack_more_tokens(self, cx: ElementUnpackContext) -> bool:
-    #     """
-    #     This function must either:
-    #      * Continously consume cx.tokens from the beginning, for example with cx.tokens.pop(0).
-    #      * Wait until there is enough tokens for the complete element, del cx.tokes[0:N] to consume N at once.
-    #     Or do both.
-    #     Return False if more tokens are needed, True if the element cannot consume anymore, the unpacker
-    #     should move to the next.
-    #     """
-    #     raise NotImplementedError()
-
-    # def unpack_finish(self, cx: ElementUnpackContext):
-    #     """
-    #     Called after unpack_more_tokens() returns True, or the model hits max_tokens and cannot
-    #     produce more tokens.
-    #     """
-    #     pass
 
 class Unpacker:
     def __init__(self, fmt: Format2023q2, initial_elements: List[Element], position: int):
@@ -42,18 +22,23 @@ class Unpacker:
         self._constructing: Optional[Element] = None
         self._position = position
 
-    def lookup_file(self, todel: str, line_n: int) -> List[Tuple[FileElement, int, int]]:
-        print("lookup_file \"%s\" formal_line=%i" % (todel.replace("\n", "\\n"), line_n))
+    def lookup_file(self, todel: str, external_line_n: int) -> List[Tuple[FileElement, int, int]]:
+        print("lookup_file \"%s\" formal_line=%i" % (todel.replace("\n", "\\n"), external_line_n))
+        if len(todel) == 0:
+            return []
         lst = []
         for potential_file in self.result:
             if potential_file.el_type == "FILE":
                 file: FileElement = potential_file
                 cursor = 0
                 for _ in range(5):  # pointless to return more than 5
-                    idx = file._file_lines_joined.index(todel)
-                    if idx >= 0:
-                        line_n = file._file_lines_joined.count("\n", 0, idx)
-                        lst.append((file, line_n, 0))
+                    i = file._file_lookup_helper_string.find(todel, cursor)
+                    if i == -1:
+                        break
+                    line_n = file._file_lookup_helper_string.count("\n", 0, i)
+                    fuzzy = abs(external_line_n - line_n) if external_line_n != -1 else -1
+                    lst.append((file, line_n, fuzzy))
+                    cursor = i + 1
         return lst
 
     def feed_tokens(self, toks: List[int]):
