@@ -74,7 +74,7 @@ class ScratchpadBigCode(ScratchpadBase):
         if lines[-1] == "" or lines[-1][-1] != "\n":
             lines[-1] += "\n"
         join_back = "\n".join(lines)
-        print(
+        self.debuglog(
             termcolor.colored(join_back[:self.cursor0], "red"),
             "|",
             termcolor.colored(join_back[self.cursor0:self.cursor1], "magenta"),
@@ -102,7 +102,7 @@ class ScratchpadBigCode(ScratchpadBase):
             *suffix_cut_tokens,
             self.enc.INFILL,
         ]
-        print(
+        self.debuglog(
             termcolor.colored(self.enc.decode(prompt), "yellow")
         )
         self.debuglog(
@@ -185,6 +185,10 @@ class ScratchpadBigCode(ScratchpadBase):
             if last_line.startswith("----"):
                 self.finish_reason = "prompt-endmark"
 
+        self.debuglog("SELECTION: \"%s\"" % self.selection.replace("\n", "\\n"))
+        self.debuglog("COMPLETION: \"%s\"" % completion_text.replace("\n", "\\n"))
+        self.debuglog("FINISH REASON: \"%s\"" % self.finish_reason)
+
         if self.function.startswith('comment-each-line'):
             completion_text = self._postprocess(completion_text)
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
@@ -203,9 +207,21 @@ class ScratchpadBigCode(ScratchpadBase):
         elif self.function.startswith('add-console-logs'):
             completion_text = self._postprocess(completion_text)
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
+        elif self.function.startswith('infill'):
+            if self.finish_reason == "stop-lf":
+                # More complex case, the model didn't finish, we need to do our best to apply
+                # what we have to the current line
+                assert "\n" in completion_text
+                space_idx = completion_text.find("\n")
+                suffix_cut = self.suffix
+                self.debuglog("ONE LINE STOP: suffix old '%s'" % suffix_cut[:30].replace("\n", "\\n"))
+                while not suffix_cut.startswith("\n") and len(suffix_cut) > 0:
+                    suffix_cut = suffix_cut[1:]
+                self.debuglog("ONE LINE STOP: suffix new '%s'" % suffix_cut[:30].replace("\n", "\\n"))
+                result[self.cursor_file] = self.prefix + completion_text[:space_idx] + suffix_cut
+            else:
+                # Simple case, most likely self.finish_reason == "eot":
+                result[self.cursor_file] = self.prefix + completion_text + self.suffix
         else:
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
-        self.debuglog("SELECTION: \"%s\"" % self.selection.replace("\n", "\\n"))
-        self.debuglog("COMPLETION: \"%s\"" % completion_text.replace("\n", "\\n"))
-        self.debuglog("FINISH REASON: \"%s\"" % self.finish_reason)
         return result
