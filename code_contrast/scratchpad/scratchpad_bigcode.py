@@ -207,4 +207,5 @@ class ScratchpadBigCode(ScratchpadBase):
             result[self.cursor_file] = self.prefix + completion_text + self.suffix
         self.debuglog("SELECTION: \"%s\"" % self.selection.replace("\n", "\\n"))
         self.debuglog("COMPLETION: \"%s\"" % completion_text.replace("\n", "\\n"))
+        self.debuglog("FINISH REASON: \"%s\"" % self.finish_reason)
         return result
