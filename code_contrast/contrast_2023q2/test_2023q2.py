@@ -79,8 +79,8 @@ def test_expansion(fmt: Format2023q2):
     }
     pack = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
-        time.sleep(1)
-        print("\033[2J")
+        # time.sleep(1)
+        # print("\033[2J")
         start_from_plan_n = 0
         mask_from_plan_n = 1
         limit_aux_n = 100
@@ -88,8 +88,10 @@ def test_expansion(fmt: Format2023q2):
         pack.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
         print(pack.dump_r())
         print(len(pack.r), " <= ", n_ctx)
+        if pack.cx.minimal_context_too_big_warning and n_ctx == 200:
+            continue
         if len(pack.r) > n_ctx:
-            break
+            assert 0, len(pack.r)
         # pack.plan[0] -- FILE
         # pack.plan[1] -- MSG
         # pack.plan[2] -- CHUNK
@@ -112,7 +114,7 @@ def test_expansion(fmt: Format2023q2):
             # print(termcolor.colored("patched %s:" % fn, "red"))
             # print("".join(txt))
             assert "".join(txt) in [odm["dest"][fn], odm["dest"][fn] + "\n"]
-
+    print("test_expansion PASSED")
 
 
 test_orig = """
@@ -170,71 +172,52 @@ example_odm = {
 }
 
 
-def self_test(enc: SMCEncoding, odm: Dict[str, Any], verbose: bool, limit_ctx_n=2048, limit_aux_n=512, tight_shrink: bool=False):
+def self_test(
+    fmt: Format2023q2,
+    odm: Dict[str, Any],
+    limit_ctx_n=2048,
+    limit_aux_n=512,
+    tight_shrink: bool=False
+):
     import time
     t0 = time.time()
-    test1 = Contrast2023q2(enc)
-    full_orig_tokens = test1.from_odm_dict(odm, limit_ctx_n, limit_aux_n,
-        tight_shrink=tight_shrink,
-    )
-    quit()
+    pack = from_odm_dict(fmt, odm, tight_shrink=tight_shrink)
+    pack.pack_context(
+        start_from_plan_n=0,
+        mask_from_plan_n=0,
+        limit_ctx_n=limit_ctx_n,
+        limit_aux_n=limit_aux_n,
+        add_eot=True
+        )
+    print(pack.dump_r())
+    t1 = time.time()
+    print("prompt %0.2fms => %i tokens" % (1000*(t1 - t0), len(pack.r)))
 
-    test1.write_edits()
-    if verbose:
-        t1 = time.time()
-        print("prompt %0.2fms => %i tokens" % (1000*(t1 - t0), len(test1.r)))
-    if len(test1.r) > 2*n_ctx:
-        # Don't test because likely there will not be enough position tokens anyway
-        return {}
-    edit_classes = test1.edit_class_vector()
-    if verbose:
-        print(editclass_print(enc, test1.r, test1.m, edit_classes))
-        print("tokens %i, n_ctx=%i" % (len(test1.r), n_ctx))
-    test2 = ContrastDiff(enc)
-    test_odm_nodest = copy.deepcopy(odm)
-    del test_odm_nodest["dest"]
-    us = test2.untokenize(test1.r, full_orig_tokens)
-    e1 = test1.dump_edits()
-    e2 = test2.dump_edits()
-    if verbose:
-        print("\n" + termcolor.colored("-"*130, "yellow"))
-        print(e1)
-    def first_different_symbol_e1_e2():
-        for i in range(len(e1)):
-            if e1[i] != e2[i]:
-                return i
-        return -1
-    assert e1 == e2, ("len(test1.r)==%i" % len(test1.r)) + "\n" + e1 + "\n" + e2 + "\n\nfirst_different_symbol_e1_e2=%i" % first_different_symbol_e1_e2()
-    test2.apply_edits_return_dest(us)
-    for err in test2.errors:
-        print("ERROR:", err)
-    for fn in test1.dest_tokens.keys():
-        # if verbose:
-        #     print("dest %s:" % fn)
-        #     print(hlprint(enc, test1.dest_tokens[fn]))
-        if test1.dest_tokens[fn] != test2.dest_tokens[fn]:
-            dest1 = enc.decode(test1.dest_tokens[fn])
-            dest2 = enc.decode(test2.dest_tokens[fn])
-            udiff = list(difflib.unified_diff(
-                dest1.splitlines(),
-                dest2.splitlines(),
-                fromfile=fn,
-                tofile=fn,
-                lineterm="",
-            ))
-            print("\n".join(udiff))
-            print(json.dumps(us.stats))
-            assert 0, len(udiff)
-    if verbose:
-        print(json.dumps(us.stats))
-        print("diff.r", len(test1.r))
-    return us.stats
+    pretend_generated_from_element = 1
+    pretend_generated_from_token = pack.plan[pretend_generated_from_element].located_at
+    u1 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], position=pretend_generated_from_token)
+    u2 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], position=pretend_generated_from_token)
+    u1.feed_tokens(pack.r[pretend_generated_from_token:])
+    for t in pack.r[pretend_generated_from_token:]:
+        u2.feed_tokens([t])
+    for e0, e1, e2 in zip(
+        pack.plan[pretend_generated_from_element:],
+        u1.result[pretend_generated_from_element:],
+        u2.result[pretend_generated_from_element:],
+    ):
+        print(e0)
+        assert repr(e0) == repr(e1), " != %s" % (repr(e1))
+        assert repr(e0) == repr(e2), " != %s" % (repr(e2))
+    code = el_chunk.apply_chunks(u1.result)
+    for fn, txt in code.items():
+        assert "".join(txt) in [odm["dest"][fn], odm["dest"][fn] + "\n"]
+    print("self_test PASSED")
 
 
 if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
     # test_messages(fmt)
-    test_expansion(fmt)
-    # self_test(enc, example_odm, verbose=True, limit_ctx_n=512, limit_aux_n=128)
+    # test_expansion(fmt)
+    self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
 

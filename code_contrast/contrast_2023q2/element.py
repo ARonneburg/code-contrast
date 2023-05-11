@@ -21,6 +21,7 @@ class ElementPackingContext:
         self.filled_ctx_n = 0
         self.filled_aux_n = 0
         self.occupied_line_ranges: List[Tuple[int, int]] = list()
+        self.minimal_context_too_big_warning = False
 
 
 class ElementUnpackContext:

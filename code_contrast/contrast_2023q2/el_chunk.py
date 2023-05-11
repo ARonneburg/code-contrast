@@ -26,7 +26,6 @@ class ChunkElement(Element):
 
     def assign_from_diff(self, replacement_text: List[str], i0, i1, j0, j1):
         assert self.orig_file
-        self.replacement_text = replacement_text
         self.line_n = i0
         self.to_del = self.orig_file.file_lines[i0:i1]
         self.to_ins = replacement_text

@@ -148,7 +148,6 @@ class FileElement(Element):
         assert len(self.file_lines) == len(self.file_lines_toks)
         self._file_lookup_helper_string = ""
         line_countdown = 0
-        first_header = True
         for line_n, line_toks in enumerate(self.file_lines_toks):
             if not line_toks:
                 line_countdown = 0
@@ -157,8 +156,7 @@ class FileElement(Element):
             if line_countdown == 0:
                 line_n_t = [cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (line_n,))
                 t.extend(line_n_t)
-                m.extend([1 if not first_header else 0]*len(line_n_t))
-                first_header = False
+                m.extend([0]*len(line_n_t))
                 line_countdown = 15
             t.extend(line_toks)
             m.extend([1]*len(line_toks))

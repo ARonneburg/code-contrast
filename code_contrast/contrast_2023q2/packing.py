@@ -47,6 +47,7 @@ class Packer:
         if cx.filled_ctx_n > cx.limit_ctx_n:
             excess = cx.filled_ctx_n - cx.limit_ctx_n
             cx.limit_aux_n = max(0, cx.limit_aux_n - excess)
+            cx.minimal_context_too_big_warning = True
             print("WARNING: initial filled_ctx_n %d > limit_ctx_n %d. Reduced limit_aux_n to %d" % (cx.filled_ctx_n, cx.limit_ctx_n, cx.limit_aux_n))
         for aux in [1, 0]:
             while 1:
