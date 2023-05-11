@@ -62,21 +62,27 @@ def test_messages(fmt: Format2023q2):
 
 
 def test_expansion(fmt: Format2023q2):
-    orig = ["# this is line %d" % i for i in range(30)]
-    dest = orig[:]
-    dest[10] = "# changed line"
-    external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None
-    external_poi_ranges = defaultdict(list)
-    external_poi_ranges["test.py"] = [(20, 20), (25, 25)]
-    odm = {
-        "orig": {
-            'test.py': "\n".join(orig),
-        },
-        "dest": {
-            'test.py': "\n".join(dest),
-        },
-        "commitmsg": "Expansion test",
-    }
+    def trivial_example():
+        orig = ["# this is line %d" % i for i in range(30)]
+        lib = ["# this is library line %d" % i for i in range(1000)]
+        dest = orig[:]
+        dest[10] = "# changed line"
+        external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None
+        external_poi_ranges = defaultdict(list)
+        external_poi_ranges["test.py"] = [(20, 20), (25, 25)]
+        external_poi_ranges["lib.py"] = [(500, 500)]
+        odm = {
+            "orig": {
+                'test.py': "\n".join(orig),
+                'lib.py': "\n".join(lib),
+            },
+            "dest": {
+                'test.py': "\n".join(dest),
+            },
+            "commitmsg": "Expansion test",
+        }
+        return odm, external_poi_ranges
+    odm, external_poi_ranges = trivial_example()
     pack = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
         # time.sleep(1)
@@ -218,6 +224,6 @@ if __name__ == "__main__":
     enc = SMCEncoding("openai_cl100k")
     fmt = format.format_2023q2_escape(enc)
     # test_messages(fmt)
-    # test_expansion(fmt)
-    self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
+    test_expansion(fmt)
+    # self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
 

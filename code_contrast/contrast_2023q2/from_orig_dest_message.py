@@ -33,7 +33,7 @@ def from_odm_dict(
     pack = Packer(fmt)
     files1 = list(odm["orig"].keys())
     files2 = list(odm["dest"].keys())
-    assert files1 == files2
+    assert set(files2).issubset(set(files1))
     fns = list(files1)
     if tight_shrink:
         fns.reverse()   # main file moves to the end, more visible to the model
@@ -42,6 +42,9 @@ def from_odm_dict(
     files = []
     chunks = []
     for fn in fns:
+        if (external_poi_ranges is None or fn not in external_poi_ranges) and fn not in files2:
+            print("WARNING: file '%s' is not in dest or POI, context will not contain it" % fn)
+            continue
         f = FileElement(fn, [(x + "\n") for x in odm["orig"][fn].splitlines()])
         pack.add_to_plan(f)
         if external_poi_ranges and fn in external_poi_ranges:
@@ -52,6 +55,8 @@ def from_odm_dict(
     msg = MsgElement("USER", odm["commitmsg"])
     pack.add_to_plan(msg)
     for fn, f in zip(fns, files):
+        if fn not in odm["dest"]:
+            continue
         chunks.extend(_run_diff_for_single_file(f, [(x + "\n") for x in odm["dest"][fn].splitlines()], exact_cx_lines0, exact_cx_lines1))
     random.shuffle(chunks)
     for chunk in chunks:
