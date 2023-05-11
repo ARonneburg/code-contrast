@@ -40,10 +40,11 @@ class ScratchpadBigChat(ScratchpadBase):
             **unused
     ) -> Dict[str, Any]:
         self._tokens_produced += 1
-        if self._tokens_produced % 5 == 0 and self._upload_moratorium == 0:
-            self.needs_upload = True
         if self._upload_moratorium > 0:
             self._upload_moratorium -= 1
+        if self._tokens_produced % 3 == 0 and self._upload_moratorium == 0:
+            self.needs_upload = True
+        # print("self._tokens_produced", self._tokens_produced, "self._upload_moratorium", self._upload_moratorium)
         t = chosen_token.item()
         self._tokens.append(t)
         if chosen_token == self.enc.EOT:
@@ -64,7 +65,7 @@ class ScratchpadBigChat(ScratchpadBase):
 
         t_str = self.enc.decode([t])
         if "\n" in t_str:
-            self._upload_moratorium = 5  # might be "Human:", don't want this partially uploaded
+            self._upload_moratorium = 3  # might be "Human:", don't want this partially uploaded
         if self.stop_lf and t_str.startswith("\n"):
             self.finish_reason = "stop-lf"
         if self.stop_lf_lf and t_str.startswith("\n\n"):
