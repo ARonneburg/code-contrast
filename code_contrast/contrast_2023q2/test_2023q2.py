@@ -88,7 +88,7 @@ def test_expansion(fmt: Format2023q2):
         # time.sleep(1)
         # print("\033[2J")
         start_from_plan_n = 0
-        mask_from_plan_n = 1
+        mask_from_plan_n = 2
         limit_aux_n = 100
         limit_ctx_n = n_ctx - limit_aux_n
         pack.pack_context(start_from_plan_n=start_from_plan_n, mask_from_plan_n=mask_from_plan_n, limit_ctx_n=limit_ctx_n, limit_aux_n=limit_aux_n, add_eot=True)
@@ -99,15 +99,16 @@ def test_expansion(fmt: Format2023q2):
         if len(pack.r) > n_ctx:
             assert 0, len(pack.r)
         # pack.plan[0] -- FILE
-        # pack.plan[1] -- MSG
-        # pack.plan[2] -- CHUNK
-        parse_from = 1   # that includes MSG
-        cut_at_tokens = pack.plan[parse_from].located_at
-        u1 = Unpacker(fmt, pack.plan[:parse_from], cut_at_tokens)
-        tokens_cut = pack.r[cut_at_tokens:]
+        # pack.plan[1] -- FILE
+        # pack.plan[2] -- MSG
+        # pack.plan[3] -- CHUNK
+        pretend_generated_from_element = 2
+        pretend_generated_from_token = pack.plan[pretend_generated_from_element].located_at
+        u1 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], pretend_generated_from_token)
+        # tokens_cut = pack.r[cut_at_tokens:]
         # print("tokens_cut", tokens_cut)
         # print(fmt.enc.decode(tokens_cut))
-        u1.feed_tokens(tokens_cut)
+        u1.feed_tokens(pack.r[pretend_generated_from_token:])
         print(termcolor.colored("orig plan:", "red"))
         for el in pack.plan:
             print(el)

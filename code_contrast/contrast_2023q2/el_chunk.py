@@ -1,3 +1,4 @@
+import re
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
 from code_contrast.contrast_2023q2.el_file import FileElement
 from typing import List, Tuple, Optional, Dict
@@ -20,7 +21,8 @@ class ChunkElement(Element):
         self._ins_tokens: List[int] = []
         self._del_tokens: List[int] = []
         self._tok_LINE = -1
-        self._chunk_line = -1
+        self._hint_line = -1
+        self._hint_file = ""
         self._line_tokens: List[int] = []
         self._line_n_patched = -1
 
@@ -35,8 +37,8 @@ class ChunkElement(Element):
         assert self.orig_file
         t = cx.enc.encode("CHUNK\n")
         for j in range(len(self.to_del)):
-            t.extend(cx.enc.encode(self.to_del[j]))
-        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d\n" % (self.line_n,)))
+            t.extend(cx.enc.encode(self.to_del[j]))#
+        t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d %s\n" % (self.line_n, self.orig_file.file_fn)))
         for j in range(len(self.to_ins)):
             t.extend(cx.enc.encode(self.to_ins[j]))
         m = [1]*len(t)
@@ -59,10 +61,15 @@ class ChunkElement(Element):
         if self._state == STATE_LINE_N:
             tmp = cx.enc.decode(self._line_tokens)
             try:
-                self._chunk_line = int(tmp)
+                # Format is "0008 test.py"
+                m = re.fullmatch(r"^(\d+) (\S+)\n.*$", tmp)
+                if m:
+                    self._hint_line = int(m.group(1))
+                    self._hint_file = m.group(2)
             except ValueError:
                 pass   # stays -1
-            # print("LINE collected self._line_tokens \"%s\" -> _chunk_line %i" % (tmp.replace("\n", "\\n"), self._chunk_line))
+            print("LINE collected self._line_tokens \"%s\" -> _hint_line %i _hint_file '%s'" % (tmp.replace("\n", "\\n"), self._hint_line, self._hint_file))
+            # import IPython; IPython.embed(); quit()
             self._line_tokens = []
             # fills fuzzy correctly, even if we know the location already
             self._locate_this_chunk_in_file_above(cx, force=True)
@@ -85,6 +92,7 @@ class ChunkElement(Element):
                 t1_txt = cx.enc.decode([t1])
                 self._line_tokens.append(t0)
                 if "\n" in t1_txt:
+                    self._line_tokens.append(t1)   # We're hedging here: maybe this token contributes to line, maybe to code, maybe both!
                     self._switch_state(cx, STATE_INS)
                 del cx.tokens[0]
             elif self._state == STATE_INS:
@@ -124,7 +132,7 @@ class ChunkElement(Element):
         if not self.orig_file or force:
             lst: List[Tuple[FileElement, int, int]] = []
             to_del_str = self._del_str(cx)
-            lst = cx.lookup_file(to_del_str, self._chunk_line)    # possible locations
+            lst = cx.lookup_file(to_del_str, self._hint_line, self._hint_file)    # possible locations
             if len(lst) == 1:
                 # print("found one match for todel")
                 file, line_n, fuzzy = lst[0]

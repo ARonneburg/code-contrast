@@ -1,19 +1,6 @@
-import random
-import time
-import termcolor
-
-from cdifflib import CSequenceMatcher
-
-from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.contrast.contrast_stochastic import ops_remove_short_equals
-from code_contrast.contrast.contrast_stochastic import ops_stochastic_expand
-from code_contrast.print_utils import editclass_print, hlprint
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
-
-from collections import defaultdict
 from dataclasses import dataclass, field
-
-from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
+from typing import List, Tuple, Optional
 
 
 @dataclass

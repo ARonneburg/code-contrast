@@ -1,4 +1,4 @@
-import termcolor
+import termcolor, re
 from code_contrast.encoding.smc_encoding import SMCEncoding
 from typing import List, Dict, Tuple, Callable, Type
 
@@ -96,6 +96,7 @@ class Element:
             if callable(val):
                 continue
             val_str = repr(val)
+            val_str = re.sub('\033\[.*?m', '', val_str)
             val_str = val_str[:40] + "... " if len(val_str) > 40 else val_str + " "
             ret += field + " " + termcolor.colored(val_str, "cyan") + " "
         return ret
