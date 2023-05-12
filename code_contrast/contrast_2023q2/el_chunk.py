@@ -61,15 +61,14 @@ class ChunkElement(Element):
         if self._state == STATE_LINE_N:
             tmp = cx.enc.decode(self._line_tokens)
             try:
-                # Format is "0008 test.py"
-                m = re.fullmatch(r"^(\d+) (\S+)\n.*$", tmp)
+                # Format is "0008 test.py", filename can contain spaces, slashes, etc
+                m = re.fullmatch(r"^(\d+) (.+)\n.*", tmp)
                 if m:
                     self._hint_line = int(m.group(1))
                     self._hint_file = m.group(2)
             except ValueError:
                 pass   # stays -1
-            print("LINE collected self._line_tokens \"%s\" -> _hint_line %i _hint_file '%s'" % (tmp.replace("\n", "\\n"), self._hint_line, self._hint_file))
-            # import IPython; IPython.embed(); quit()
+            # print("LINE collected self._line_tokens \"%s\" -> _hint_line %i _hint_file '%s'" % (tmp.replace("\n", "\\n"), self._hint_line, self._hint_file))
             self._line_tokens = []
             # fills fuzzy correctly, even if we know the location already
             self._locate_this_chunk_in_file_above(cx, force=True)

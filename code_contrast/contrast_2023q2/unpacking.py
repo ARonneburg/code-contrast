@@ -22,23 +22,32 @@ class Unpacker:
         self._constructing: Optional[Element] = None
         self._position = position
 
-    def lookup_file(self, todel: str, external_line_n: int, external_file_name: str) -> List[Tuple[FileElement, int, int]]:
+    def lookup_file(
+        self, todel: str,
+        external_line_n: int,
+        external_file_name: str
+    ) -> List[Tuple[FileElement, int, int]]:
         # print("lookup_file \"%s\" external_line_n=%i" % (todel.replace("\n", "\\n"), external_line_n))
-        if len(todel) == 0:
-            return []
         lst = []
         for potential_file in self.result:
             if potential_file.el_type == "FILE":
                 file: FileElement = potential_file
-                cursor = 0
-                for _ in range(5):  # pointless to return more than 5
-                    i = file._file_lookup_helper_string.find(todel, cursor)
-                    if i == -1:
-                        break
-                    line_n = file._file_lookup_helper_string.count("\n", 0, i)
-                    fuzzy = abs(external_line_n - line_n) if external_line_n != -1 else -1
-                    lst.append((file, line_n, fuzzy))
-                    cursor = i + 1
+                # maybe file.file_fn similar to external_file_name?
+                if len(todel) == 0:
+                    if file.file_fn == external_file_name and external_line_n >= 0:
+                        lst.append((file, external_line_n, 10))
+                if len(todel) > 0:
+                    cursor = 0
+                    for _ in range(5):  # pointless to return more than 5
+                        i = file._file_lookup_helper_string.find(todel, cursor)
+                        if i == -1:
+                            break
+                        line_n = file._file_lookup_helper_string.count("\n", 0, i)
+                        fuzzy = abs(external_line_n - line_n) if external_line_n != -1 else -1
+                        lst.append((file, line_n, fuzzy))
+                        cursor = i + 1
+        lst.sort(key=lambda x: x[2])
+        # print("lookup_file sorted", lst)
         return lst
 
     def feed_tokens(self, toks: List[int]):
