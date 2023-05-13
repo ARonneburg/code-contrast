@@ -206,11 +206,14 @@ def self_test(
         assert repr(e0) == repr(e2), " != %s" % (repr(e2))
     code = el_chunk.apply_chunks(u1.result)
     for fn, dest in odm["dest"].items():
-        if fn not in code:
-            # Not modified
-            assert odm["dest"][fn] == odm["orig"][fn]
-            continue
         dest = "\n".join(dest.splitlines())
+        if fn not in code:
+            # Not modified.
+            # Split-join is necessary because from_odm_dict() will not produce any output for
+            # files different only in the last \n
+            orig = "\n".join(odm["orig"][fn].splitlines())
+            assert dest == orig
+            continue
         modified_code = "".join(code[fn])
         if modified_code not in [dest, dest + "\n"]:
             import difflib

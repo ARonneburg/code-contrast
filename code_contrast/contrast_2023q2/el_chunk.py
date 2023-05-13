@@ -139,13 +139,12 @@ class ChunkElement(Element):
                 print("WARNING: multiple matches %i for todel, using first one, lookup was hint_line=%i, hint_file=\"%s\"" % (len(lst), self._hint_line, self._hint_file.replace("\n", "\\n")))
                 print("\n".join([str(x) for x in lst]))
             elif force:
-                print("WARNING: no matches for todel=\"%s\", lookup was hint_line=%i, hint_file=\"%s\"" % (to_del_str.replace("\n", "\\n"), self._hint_line, self._hint_file.replace("\n", "\\n")))
-                # import IPython; IPython.embed(); quit()
+                print("WARNING: no matches for todel=\"%s\", lookup was hint_line=%i, hint_file=\"%s\"" % (to_del_str[:100].replace("\n", "\\n"), self._hint_line, self._hint_file.replace("\n", "\\n")))
                 # to_del = to_del_str.splitlines(keepends=True)
                 # for i in range(len(to_del)):
                 #     eq = self.orig_file.file_lines[self.line_n + i] == to_del[i]
-                #     if not eq:
-                #         print("line %i" % (self.line_n + i))
+                #     have = self.orig_file.file_lines_toks[self.line_n + i] is not None
+                #     print("line %i eq=%i have=%i" % (self.line_n + i, eq, have))
                 return
             else:
                 # nothing found, but not force yet, so not a big deal
@@ -153,7 +152,7 @@ class ChunkElement(Element):
             # print("xxx\n" + "\n".join([str(x) for x in lst]))
             self.orig_file, self.line_n, self.fuzzy = lst[0]
             if force and self.fuzzy != 0:
-                print("WARNING: fuzzy not zero chunk, todel=\"%s\" hints line_n=%i, line=%s" % (to_del_str.replace("\n", "\\n"), self.line_n, self.orig_file.file_lines[self.line_n]))
+                print("WARNING: fuzzy not zero chunk, todel=\"%s\" hints line_n=%i, line=%s" % (to_del_str[:100].replace("\n", "\\n"), self.line_n, self.orig_file.file_lines[self.line_n]))
 
 
 def apply_chunks(plan: List[Element]) -> Dict[str, List[str]]:
@@ -184,7 +183,7 @@ def apply_chunks(plan: List[Element]) -> Dict[str, List[str]]:
                 continue
             old_line_n = forward_ch._line_n_patched
             forward_ch._line_n_patched += (len(ch.to_ins) - len(ch.to_del))
-            print("xxx modifying forward chunk line_n %i -> %i" % (old_line_n, forward_ch._line_n_patched))
+            # print("xxx modifying forward chunk line_n %i -> %i" % (old_line_n, forward_ch._line_n_patched))
     return code
 
 

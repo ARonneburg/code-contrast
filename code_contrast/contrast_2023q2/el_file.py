@@ -53,7 +53,7 @@ class FileElement(Element):
             er.line0expand = er.line0
             er.line1expand = er.line1
             for line in range(er.line0expand, er.line1expand + 1):
-                self._lines2toks_helper(cx, line, aux=er.aux)
+                self._lines2toks_helper(cx, line, aux=er.aux, mandatory=True)
         self._estimate_line_header_tokens(cx)
         return t, m
 
@@ -78,7 +78,7 @@ class FileElement(Element):
             cx.filled_aux_n += (aux_lineheaders_n - self._lineheaders_aux_n) * self._toks_count_LINE
             self._lineheaders_aux_n = aux_lineheaders_n
 
-    def _lines2toks_helper(self, cx: ElementPackingContext, l: int, aux: int):
+    def _lines2toks_helper(self, cx: ElementPackingContext, l: int, aux: int, mandatory: bool) -> bool:
         self._estimate_line_header_tokens(cx)
         if l < 0 or l >= len(self.file_lines):
             return False
@@ -87,12 +87,12 @@ class FileElement(Element):
         t = cx.enc.encode(self.file_lines[l])
         take_line = False
         if aux:
-            if cx.filled_aux_n + len(t) < cx.limit_aux_n:
+            if cx.filled_aux_n + len(t) < cx.limit_aux_n or mandatory:
                 # print("take aux line %i" % (l))
                 cx.filled_aux_n += len(t)
                 take_line = True
         else:
-            if cx.filled_ctx_n + len(t) < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n):
+            if cx.filled_ctx_n + len(t) < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n) or mandatory:
                 # print("take ctx line %i" % (l))
                 cx.filled_ctx_n += len(t)
                 take_line = True
@@ -111,13 +111,14 @@ class FileElement(Element):
                 # if er.line0expand - 1 > 0 and self.file_lines_toks[er.line0expand - 1] is not None:
                 #     print(" ! bumped into another expanding range er.line0expand - 1 = %d" % (er.line0expand - 1))
                 #     er.works0 = False
-                success = self._lines2toks_helper(cx, er.line0expand - 1, aux=er.aux)
+                success = self._lines2toks_helper(cx, er.line0expand - 1, aux=er.aux, mandatory=False)
                 if success:
                     er.line0expand -= 1
                 else:
                     er.works0 = False
             if er.works1:
-                success = self._lines2toks_helper(cx, er.line1expand + 1, aux=er.aux)  # For example we start with the range (5, 5) and expand from there, the line below is 6
+                # For example we start with the range (5, 5) and expand from there, the line below is 6
+                success = self._lines2toks_helper(cx, er.line1expand + 1, aux=er.aux, mandatory=False)
                 if success and er.line1expand + 1 >= len(self.file_lines) - 1:
                     er.works1 = False
                     er.line1expand = len(self.file_lines) - 1
