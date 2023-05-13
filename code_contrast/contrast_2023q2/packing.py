@@ -19,7 +19,9 @@ class Packer:
         self.cx: Optional[ElementPackingContext] = None
 
     def add_to_plan(self, f: Element):
+        l = len(self.plan)
         self.plan.append(f)
+        return l
 
     def pack_context(self,
         *,

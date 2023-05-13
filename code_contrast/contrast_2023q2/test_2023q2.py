@@ -1,22 +1,13 @@
-import random
-import time
-import copy
-import json
-
 import termcolor
 
-import difflib
-from cdifflib import CSequenceMatcher
-
 from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.print_utils import editclass_print, hlprint
+from code_contrast.print_utils import hlprint
 
 from collections import defaultdict
 
 from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional
 
-
-from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, Format2023q2
+from code_contrast.contrast_2023q2.element import Element, Format2023q2
 from code_contrast.contrast_2023q2 import format
 from code_contrast.contrast_2023q2 import el_chunk
 
@@ -83,7 +74,7 @@ def test_expansion(fmt: Format2023q2):
         }
         return odm, external_poi_ranges
     odm, external_poi_ranges = trivial_example()
-    pack = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
+    pack, msg_plan_n = from_odm_dict(fmt, odm, tight_shrink=True, external_poi_ranges=external_poi_ranges)
     for n_ctx in range(200, 351, 50):
         # time.sleep(1)
         # print("\033[2J")
@@ -102,7 +93,7 @@ def test_expansion(fmt: Format2023q2):
         # pack.plan[1] -- FILE
         # pack.plan[2] -- MSG
         # pack.plan[3] -- CHUNK
-        pretend_generated_from_element = 2
+        pretend_generated_from_element = msg_plan_n
         pretend_generated_from_token = pack.plan[pretend_generated_from_element].located_at
         u1 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], pretend_generated_from_token)
         # tokens_cut = pack.r[cut_at_tokens:]
@@ -184,11 +175,10 @@ def self_test(
     odm: Dict[str, Any],
     limit_ctx_n=2048,
     limit_aux_n=512,
-    tight_shrink: bool=False
+    tight_shrink: bool=False,
+    verbose=True,
 ):
-    import time
-    t0 = time.time()
-    pack = from_odm_dict(fmt, odm, tight_shrink=tight_shrink)
+    pack, msg_plan_n = from_odm_dict(fmt, odm, tight_shrink=tight_shrink)
     pack.pack_context(
         start_from_plan_n=0,
         mask_from_plan_n=0,
@@ -196,11 +186,9 @@ def self_test(
         limit_aux_n=limit_aux_n,
         add_eot=True
         )
-    print(pack.dump_r())
-    t1 = time.time()
-    print("prompt %0.2fms => %i tokens" % (1000*(t1 - t0), len(pack.r)))
-
-    pretend_generated_from_element = 1
+    if verbose:
+        print(pack.dump_r())
+    pretend_generated_from_element = msg_plan_n
     pretend_generated_from_token = pack.plan[pretend_generated_from_element].located_at
     u1 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], position=pretend_generated_from_token)
     u2 = Unpacker(fmt, pack.plan[:pretend_generated_from_element], position=pretend_generated_from_token)
@@ -212,19 +200,35 @@ def self_test(
         u1.result[pretend_generated_from_element:],
         u2.result[pretend_generated_from_element:],
     ):
-        print(e0)
+        if verbose:
+            print(e0)
         assert repr(e0) == repr(e1), " != %s" % (repr(e1))
         assert repr(e0) == repr(e2), " != %s" % (repr(e2))
     code = el_chunk.apply_chunks(u1.result)
-    for fn, txt in code.items():
-        assert "".join(txt) in [odm["dest"][fn], odm["dest"][fn] + "\n"]
-    print("self_test PASSED")
+    for fn, dest in odm["dest"].items():
+        if fn not in code:
+            # Not modified
+            assert odm["dest"][fn] == odm["orig"][fn]
+            continue
+        dest = "\n".join(dest.splitlines())
+        modified_code = "".join(code[fn])
+        if modified_code not in [dest, dest + "\n"]:
+            import difflib
+            udiff = list(difflib.unified_diff(
+                    modified_code.splitlines(),
+                    dest.splitlines(),
+                    fromfile=fn,
+                    tofile=fn,
+                    lineterm="",
+                ))
+            print("\n".join(udiff))
+            assert 0
 
 
 if __name__ == "__main__":
-    enc = SMCEncoding("openai_cl100k")
+    enc = SMCEncoding("bigcode_largemodel")
     fmt = format.format_2023q2_escape(enc)
     # test_messages(fmt)
-    test_expansion(fmt)
-    # self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
+    # test_expansion(fmt)
+    self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
 

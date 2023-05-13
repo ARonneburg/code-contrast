@@ -24,12 +24,11 @@ from code_contrast.contrast_2023q2.el_msg import MsgElement
 def from_odm_dict(
     fmt: Format2023q2,
     odm: Dict[str, Any],
-    # random_shrink = True,
     tight_shrink = False,
     exact_cx_lines0 = -1,
     exact_cx_lines1 = -1,
     external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None,
-) -> Packer:
+) -> Tuple[Packer, int]:
     pack = Packer(fmt)
     files1 = list(odm["orig"].keys())
     files2 = list(odm["dest"].keys())
@@ -53,7 +52,7 @@ def from_odm_dict(
                 f.add_expanding_range(line0, line1, aux=1)
         files.append(f)
     msg = MsgElement("USER", odm["commitmsg"])
-    pack.add_to_plan(msg)
+    msg_plan_n = pack.add_to_plan(msg)
     for fn, f in zip(fns, files):
         if fn not in odm["dest"]:
             continue
@@ -61,7 +60,7 @@ def from_odm_dict(
     random.shuffle(chunks)
     for chunk in chunks:
         pack.add_to_plan(chunk)
-    return pack
+    return pack, msg_plan_n
 
 
 def _run_diff_for_single_file(f: FileElement, dest_text: List[str], exact_cx_lines0: int, exact_cx_lines1: int):

@@ -26,7 +26,7 @@ class FileElement(Element):
         self._lineheaders_aux_n = 0
         self._toks_count_LINE = -1
         self._expanding_ranges: List[_FileExpandingRange] = list()
-        self._file_lookup_helper_string: str = ""
+        self._file_lookup_helper_string: str = ""    # All lines converted to tokens, joined back into a string
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
         self._expanding_ranges.append(_FileExpandingRange(

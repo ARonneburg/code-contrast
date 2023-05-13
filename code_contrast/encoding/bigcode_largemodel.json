@@ -220,7 +220,7 @@
       "<jupyter_text>": 11,
       "<jupyter_code>": 12,
       "<jupyter_output>": 13,
-      "<empty_output>": 14,
+      "<esc>": 14,
       "<commit_before>": 15,
       "<commit_msg>": 16,
       "<commit_after>": 17,

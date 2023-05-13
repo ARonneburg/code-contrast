@@ -37,7 +37,7 @@ class ChunkElement(Element):
         assert self.orig_file
         t = cx.enc.encode("CHUNK\n")
         for j in range(len(self.to_del)):
-            t.extend(cx.enc.encode(self.to_del[j]))#
+            t.extend(cx.enc.encode(self.to_del[j]))
         t.extend([cx.enc.ESCAPE] + cx.enc.encode("LINE%04d %s\n" % (self.line_n, self.orig_file.file_fn)))
         for j in range(len(self.to_ins)):
             t.extend(cx.enc.encode(self.to_ins[j]))
@@ -131,13 +131,29 @@ class ChunkElement(Element):
         if not self.orig_file or force:
             lst: List[Tuple[FileElement, int, int]] = []
             to_del_str = self._del_str(cx)
-            lst = cx.lookup_file(to_del_str, self._hint_line, self._hint_file)    # possible locations
+            # possible locations
+            lst = cx.lookup_file(to_del_str, self._hint_line, self._hint_file, up_to_matches=(5 if not force else -1))
             if len(lst) == 1:
-                # print("found one match for todel")
-                file, line_n, fuzzy = lst[0]
-                self.orig_file = file
-                self.line_n = line_n
-                self.fuzzy = fuzzy
+                pass
+            elif force and len(lst) > 1:
+                print("WARNING: multiple matches %i for todel, using first one, lookup was hint_line=%i, hint_file=\"%s\"" % (len(lst), self._hint_line, self._hint_file.replace("\n", "\\n")))
+                print("\n".join([str(x) for x in lst]))
+            elif force:
+                print("WARNING: no matches for todel=\"%s\", lookup was hint_line=%i, hint_file=\"%s\"" % (to_del_str.replace("\n", "\\n"), self._hint_line, self._hint_file.replace("\n", "\\n")))
+                # import IPython; IPython.embed(); quit()
+                # to_del = to_del_str.splitlines(keepends=True)
+                # for i in range(len(to_del)):
+                #     eq = self.orig_file.file_lines[self.line_n + i] == to_del[i]
+                #     if not eq:
+                #         print("line %i" % (self.line_n + i))
+                return
+            else:
+                # nothing found, but not force yet, so not a big deal
+                return
+            # print("xxx\n" + "\n".join([str(x) for x in lst]))
+            self.orig_file, self.line_n, self.fuzzy = lst[0]
+            if force and self.fuzzy != 0:
+                print("WARNING: fuzzy not zero chunk, todel=\"%s\" hints line_n=%i, line=%s" % (to_del_str.replace("\n", "\\n"), self.line_n, self.orig_file.file_lines[self.line_n]))
 
 
 def apply_chunks(plan: List[Element]) -> Dict[str, List[str]]:
@@ -149,18 +165,26 @@ def apply_chunks(plan: List[Element]) -> Dict[str, List[str]]:
     for plan_i, ch in enumerate(plan):
         if not isinstance(ch, ChunkElement):
             continue
+        # print("applying chunk plan=%i" % plan_i)
         fn = ch.orig_file.file_fn
         if fn not in code:
             code[fn] = ch.orig_file.file_lines[:]
-        gets_deleted = code[fn][ch.line_n : ch.line_n + len(ch.to_del)]
-        assert gets_deleted == ch.to_del, "Oops sanity check failed.\n----------existing code:\n%s\n----------new code:\n%s" % ("\n".join(code[fn]), "\n".join(ch.to_del))
-        code[fn][ch.line_n : ch.line_n + len(ch.to_del)] = ch.to_ins
+        gets_deleted = code[fn][ch._line_n_patched : ch._line_n_patched + len(ch.to_del)]
+        if gets_deleted != ch.to_del:
+            import IPython; IPython.embed(); quit()
+        assert gets_deleted == ch.to_del, "Oops sanity check failed.\n----------existing code1:\n%s\n----------existing code2:\n%s" % ("".join(gets_deleted), "".join(ch.to_del))
+        code[fn][ch._line_n_patched : ch._line_n_patched + len(ch.to_del)] = ch.to_ins
+        forward_ch: ChunkElement
         for forward_ch in plan[plan_i+1:]:
             if not isinstance(forward_ch, ChunkElement):
                 continue
-            if forward_ch.line_n <= ch.line_n:
+            if forward_ch.orig_file != ch.orig_file:
                 continue
-            forward_ch.line_n += (len(ch.to_ins) - len(ch.to_del))
+            if forward_ch._line_n_patched < ch._line_n_patched:
+                continue
+            old_line_n = forward_ch._line_n_patched
+            forward_ch._line_n_patched += (len(ch.to_ins) - len(ch.to_del))
+            print("xxx modifying forward chunk line_n %i -> %i" % (old_line_n, forward_ch._line_n_patched))
     return code
 
 

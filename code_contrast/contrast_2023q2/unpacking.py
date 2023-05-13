@@ -1,13 +1,6 @@
-import random
-import time
-import termcolor
-
-from code_contrast.encoding.smc_encoding import SMCEncoding
-from code_contrast.print_utils import hlprint
-
 from code_contrast.contrast_2023q2.el_file import FileElement
-from code_contrast.contrast_2023q2.element import Format2023q2, Element, ElementPackingContext, ElementUnpackContext
-from typing import List, Dict, Tuple, DefaultDict, Any, Set, Optional, Type
+from code_contrast.contrast_2023q2.element import Format2023q2, Element, ElementUnpackContext
+from typing import List, Dict, Tuple, Any, Set, Optional, Type
 
 
 class Unpacker:
@@ -25,29 +18,37 @@ class Unpacker:
     def lookup_file(
         self, todel: str,
         external_line_n: int,
-        external_file_name: str
+        external_file_name: str,
+        *,
+        up_to_matches: int,
     ) -> List[Tuple[FileElement, int, int]]:
-        # print("lookup_file \"%s\" external_line_n=%i" % (todel.replace("\n", "\\n"), external_line_n))
+        # Assumption: if external_file_name is given, it's 100% accurate, model can produce an exact match of the filename above
+        # print("lookup_file \"%s\" external_line_n=%i external_file_name=\"%s\"" % (todel.replace("\n", "\\n"), external_line_n, external_file_name.replace("\n", "\\n")))
         lst = []
         for potential_file in self.result:
-            if potential_file.el_type == "FILE":
-                file: FileElement = potential_file
-                # maybe file.file_fn similar to external_file_name?
-                if len(todel) == 0:
-                    if file.file_fn == external_file_name and external_line_n >= 0:
-                        lst.append((file, external_line_n, 10))
-                if len(todel) > 0:
-                    cursor = 0
-                    for _ in range(5):  # pointless to return more than 5
-                        i = file._file_lookup_helper_string.find(todel, cursor)
-                        if i == -1:
-                            break
-                        line_n = file._file_lookup_helper_string.count("\n", 0, i)
-                        fuzzy = abs(external_line_n - line_n) if external_line_n != -1 else -1
-                        lst.append((file, line_n, fuzzy))
-                        cursor = i + 1
+            if potential_file.el_type != "FILE":
+                continue
+            file: FileElement = potential_file
+            # maybe file.file_fn similar to external_file_name?
+            if len(todel) > 0 and (external_file_name == "" or external_file_name == file.file_fn):
+                cursor = 0
+                while 1:
+                    i = file._file_lookup_helper_string.find(todel, cursor)
+                    if i == -1:
+                        break
+                    line_n = file._file_lookup_helper_string.count("\n", 0, i)
+                    fuzzy = abs(external_line_n - line_n) if external_line_n != -1 else -1
+                    lst.append((file, line_n, fuzzy))
+                    if fuzzy == 0:
+                        # perfect match already, save some calculations
+                        lst = lst[-1:]
+                        break
+                    if len(lst) == up_to_matches:
+                        break
+                    cursor = i + 1
+            if len(todel) == 0 and external_file_name == file.file_fn:
+                lst.append((file, external_line_n, 0))
         lst.sort(key=lambda x: x[2])
-        # print("lookup_file sorted", lst)
         return lst
 
     def feed_tokens(self, toks: List[int]):

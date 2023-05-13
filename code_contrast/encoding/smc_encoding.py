@@ -193,13 +193,13 @@ class SMCEncoding:
             import tokenizers
             filename = Path(__file__).resolve().parent / f"{name}.json"
             self._tokenizer = tokenizers.Tokenizer.from_file(str(filename))
-            self.ESCAPE = 0  # <|endoftext|>
             self.DIAMOND = self.DUMMY = 4  # <fim-pad>
             self.FILE = 5  # <filename>
             self.EOT = 0  # <|endoftext|>
             self.INFILL = 2  # <fim-middle>
             self.PREFIX = 1  # <fim-prefix>
             self.SUFFIX = 3  # <fim-suffix>
+            self.ESCAPE = 14  # originally was <empty_output>
             self.MSG = 16  # "<commit_msg>"
             # unique tokens
             self.GH_STARS = 6  # "<gh_stars>"
