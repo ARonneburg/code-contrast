@@ -227,6 +227,8 @@ def self_test(
                 ))
             print("\n".join(udiff))
             assert 0
+    if verbose:
+        print("SELFTEST PASSED limit_ctx_n=%i limit_aux_n=%i" %  (limit_ctx_n, limit_aux_n))
 
 
 if __name__ == "__main__":
