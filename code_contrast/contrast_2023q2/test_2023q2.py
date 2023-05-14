@@ -175,16 +175,17 @@ def self_test(
     odm: Dict[str, Any],
     limit_ctx_n=2048,
     limit_aux_n=512,
-    tight_shrink: bool=False,
+    for_training: bool=False,
     verbose=True,
 ):
-    pack, msg_plan_n = from_odm_dict(fmt, odm, tight_shrink=tight_shrink)
+    pack, msg_plan_n = from_odm_dict(fmt, odm, for_training=for_training)
     pack.pack_context(
         start_from_plan_n=0,
         mask_from_plan_n=0,
         limit_ctx_n=limit_ctx_n,
         limit_aux_n=limit_aux_n,
-        add_eot=True
+        add_eot=True,
+        for_training=for_training,
         )
     if verbose:
         print(pack.dump_r())
@@ -233,5 +234,5 @@ if __name__ == "__main__":
     fmt = format.format_2023q2_escape(enc)
     # test_messages(fmt)
     # test_expansion(fmt)
-    self_test(fmt, example_odm, limit_ctx_n=512, limit_aux_n=128)
+    self_test(fmt, example_odm, limit_ctx_n=1024, limit_aux_n=128, for_training=True, verbose=True)
 

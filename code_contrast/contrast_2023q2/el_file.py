@@ -1,3 +1,4 @@
+import random
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
@@ -10,8 +11,8 @@ class _FileExpandingRange:
     aux: int
     line0expand: int = -1
     line1expand: int = -1
-    works0: bool = True
-    works1: bool = True
+    works0: int = 1
+    works1: int = 1
 
 
 class FileElement(Element):
@@ -48,8 +49,8 @@ class FileElement(Element):
         self._lineheaders_cnt_n = 0
         self._lineheaders_aux_n = 0
         for er in self._expanding_ranges:
-            er.works0 = True
-            er.works1 = True
+            er.works0 = 1 if not cx.for_training else random.randint(0, 50)
+            er.works1 = 1 if not cx.for_training else random.randint(0, 50)
             er.line0expand = er.line0
             er.line1expand = er.line1
             for line in range(er.line0expand, er.line1expand + 1):
@@ -87,12 +88,12 @@ class FileElement(Element):
         t = cx.enc.encode(self.file_lines[l])
         take_line = False
         if aux:
-            if cx.filled_aux_n + len(t) < cx.limit_aux_n or mandatory:
+            if cx.filled_aux_n + len(t) < cx.limit_aux_n or mandatory or cx.for_training:
                 # print("take aux line %i" % (l))
                 cx.filled_aux_n += len(t)
                 take_line = True
         else:
-            if cx.filled_ctx_n + len(t) < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n) or mandatory:
+            if cx.filled_ctx_n + len(t) < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n) or mandatory or cx.for_training:
                 # print("take ctx line %i" % (l))
                 cx.filled_ctx_n += len(t)
                 take_line = True
@@ -103,6 +104,8 @@ class FileElement(Element):
         return True
 
     def pack_inflate(self, cx: ElementPackingContext, aux: bool) -> bool:
+        if cx.for_training:
+            aux = False
         anything_works = False
         for ri, er in enumerate(self._expanding_ranges):
             if er.aux != aux:
@@ -110,23 +113,27 @@ class FileElement(Element):
             if er.works0:
                 # if er.line0expand - 1 > 0 and self.file_lines_toks[er.line0expand - 1] is not None:
                 #     print(" ! bumped into another expanding range er.line0expand - 1 = %d" % (er.line0expand - 1))
-                #     er.works0 = False
+                #     er.works0 = 0
                 success = self._lines2toks_helper(cx, er.line0expand - 1, aux=er.aux, mandatory=False)
                 if success:
                     er.line0expand -= 1
+                    if cx.for_training:
+                        er.works0 -= 1    # Works as a counter up to a random number
                 else:
-                    er.works0 = False
+                    er.works0 = 0
             if er.works1:
                 # For example we start with the range (5, 5) and expand from there, the line below is 6
                 success = self._lines2toks_helper(cx, er.line1expand + 1, aux=er.aux, mandatory=False)
+                if success and cx.for_training:
+                    er.works1 -= 1
                 if success and er.line1expand + 1 >= len(self.file_lines) - 1:
-                    er.works1 = False
+                    er.works1 = 0
                     er.line1expand = len(self.file_lines) - 1
                 elif success:
                     er.line1expand += 1
                     assert er.line1expand < len(self.file_lines), ri
                 else:
-                    er.works1 = False
+                    er.works1 = 0
             # print("range%d: %d..%d, %d, %d, aux=%d, need_header=%i" % (ri, er.line0expand, er.line1expand, er.works0, er.works1, er.aux, er.need_header))
             anything_works |= er.works0 or er.works1
         return anything_works

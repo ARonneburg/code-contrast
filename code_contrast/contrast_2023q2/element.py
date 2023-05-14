@@ -13,9 +13,10 @@ class Format2023q2:
 
 
 class ElementPackingContext:
-    def __init__(self, fmt: Format2023q2, limit_ctx_n: int, limit_aux_n: int):
+    def __init__(self, fmt: Format2023q2, limit_ctx_n: int, limit_aux_n: int, for_training: bool):
         self.fmt = fmt
         self.enc = fmt.enc
+        self.for_training = for_training
         self.limit_ctx_n = limit_ctx_n
         self.limit_aux_n = limit_aux_n
         self.filled_ctx_n = 0

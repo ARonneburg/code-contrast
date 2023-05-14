@@ -24,7 +24,7 @@ from code_contrast.contrast_2023q2.el_msg import MsgElement
 def from_odm_dict(
     fmt: Format2023q2,
     odm: Dict[str, Any],
-    tight_shrink = False,
+    for_training = False,
     exact_cx_lines0 = -1,
     exact_cx_lines1 = -1,
     external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None,
@@ -34,8 +34,10 @@ def from_odm_dict(
     files2 = list(odm["dest"].keys())
     assert set(files2).issubset(set(files1))
     fns = list(files1)
-    if tight_shrink:
-        fns.reverse()   # main file moves to the end, more visible to the model
+    if not for_training:
+        # The main file assumed is first in odm["orig"].keys()
+        # This moves it to the end, more visible to the model
+        fns.reverse()
     else:
         random.shuffle(fns)
     files = []

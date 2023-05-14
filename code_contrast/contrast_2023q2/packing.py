@@ -29,9 +29,10 @@ class Packer:
         mask_from_plan_n: int,
         limit_ctx_n: int,
         limit_aux_n: int,
-        add_eot: bool
+        add_eot: bool,
+        for_training: bool,
     ):
-        cx = ElementPackingContext(self.fmt, limit_ctx_n, limit_aux_n)
+        cx = ElementPackingContext(self.fmt, limit_ctx_n, limit_aux_n, for_training=for_training)
         plan_toks: List[List[int]] = [list() for _ in range(len(self.plan))]
         plan_mask: List[List[int]] = [list() for _ in range(len(self.plan))]
         cx.filled_ctx_n = 2 if add_eot else 0   # two is ESCAPE, EOT
@@ -56,13 +57,14 @@ class Packer:
                 any_still_expanding = False
                 for i, el in enumerate(self.plan[start_from_plan_n:]):
                     # print("expand %i %s" % (i, el.el_type), "filled_ctx_n %d < %d" % (cx.filled_ctx_n, cx.limit_ctx_n),  "filled_aux_n %d < %d" % (cx.filled_aux_n, cx.limit_aux_n))
-                    any_still_expanding |= el.pack_inflate(cx, aux)
+                    any_still_expanding |= el.pack_inflate(cx, aux=aux)
                     # print(
                     #     " => total ctx %i aux %i," % (cx.filled_ctx_n, cx.filled_aux_n),
                     #     "projected ctx_n+aux_n %i\n" % (cx.filled_ctx_n + cx.filled_aux_n),
                     # )
                 if not any_still_expanding:
                     break
+
         self.r, self.m = [], []
         for i, el in enumerate(self.plan[start_from_plan_n:]):
             el.located_at = len(self.r)
@@ -90,7 +92,9 @@ class Packer:
         self.cx = cx   # keep for debugging
 
     def dump_r(self):
-        return hlprint(self.enc, self.r, self.m)
+        s  = hlprint(self.enc, self.r, self.m)
+        s += "\n(%i tokens)" % len(self.r)
+        return s
 
     def __repr__(self) -> str:
         ret = ""
