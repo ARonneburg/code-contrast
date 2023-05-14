@@ -1,7 +1,7 @@
 import random
 from code_contrast.contrast_2023q2.element import Element, ElementPackingContext, ElementUnpackContext
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Set
 
 
 @dataclass
@@ -27,6 +27,10 @@ class FileElement(Element):
         self._lineheaders_aux_n = 0
         self._toks_count_LINE = -1
         self._expanding_ranges: List[_FileExpandingRange] = list()
+        self._cursor_token_at_line = -1
+        self._lines_inspoints: Set[int] = set()
+        self._lines_deleted: Set[int] = set()
+        self._lines_replaced: Set[int] = set()
         self._file_lookup_helper_string: str = ""    # All lines converted to tokens, joined back into a string
 
     def add_expanding_range(self, line0: int, line1: int, aux: int):
@@ -86,16 +90,19 @@ class FileElement(Element):
         if self.file_lines_toks[l] is not None:
             return False
         t = cx.enc.encode(self.file_lines[l])
+        len_t = len(t)
+        if self._cursor_token_at_line == l:
+            len_t += 2
         take_line = False
         if aux:
-            if cx.filled_aux_n + len(t) < cx.limit_aux_n or mandatory or cx.for_training:
+            if cx.filled_aux_n + len_t < cx.limit_aux_n or mandatory or cx.for_training:
                 # print("take aux line %i" % (l))
-                cx.filled_aux_n += len(t)
+                cx.filled_aux_n += len_t
                 take_line = True
         else:
-            if cx.filled_ctx_n + len(t) < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n) or mandatory or cx.for_training:
+            if cx.filled_ctx_n + len_t < cx.limit_ctx_n + (cx.limit_aux_n - cx.filled_aux_n) or mandatory or cx.for_training:
                 # print("take ctx line %i" % (l))
-                cx.filled_ctx_n += len(t)
+                cx.filled_ctx_n += len_t
                 take_line = True
         if not take_line:
             return False
@@ -153,6 +160,9 @@ class FileElement(Element):
                 t.extend(line_n_t)
                 m.extend([0]*len(line_n_t))
                 line_countdown = 15
+            if self._cursor_token_at_line == line_n:
+                t.extend([cx.enc.ESCAPE, cx.enc.CURSOR])
+                m.extend([0, 0])
             t.extend(line_toks)
             m.extend([1]*len(line_toks))
             self._file_lookup_helper_string += self.file_lines[line_n]

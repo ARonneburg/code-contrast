@@ -216,6 +216,7 @@ class SMCEncoding:
             self.REPONAME = 18  # "<reponame>"
             self.LF = self._encode_token("\n")
             self.LFLF = self._encode_token("\n\n")
+            self.CURSOR = self._encode_token("CURSOR")
             self.n_vocab = self._tokenizer.get_vocab_size()
 
         elif name in ['stablelm-alpha']:

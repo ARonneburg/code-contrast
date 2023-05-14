@@ -1,4 +1,5 @@
 import random
+import numpy as np
 import time
 from code_contrast.contrast_2023q2.element import Format2023q2
 import termcolor
@@ -28,6 +29,7 @@ def from_odm_dict(
     exact_cx_lines0 = -1,
     exact_cx_lines1 = -1,
     external_poi_ranges: Optional[DefaultDict[str, List[Tuple[int, int]]]] = None,
+    want_cursor_token: bool = False,
 ) -> Tuple[Packer, int]:
     pack = Packer(fmt)
     files1 = list(odm["orig"].keys())
@@ -41,7 +43,7 @@ def from_odm_dict(
     else:
         random.shuffle(fns)
     files = []
-    chunks = []
+    chunks: List[ChunkElement] = []
     for fn in fns:
         if (external_poi_ranges is None or fn not in external_poi_ranges) and fn not in files2:
             print("WARNING: file '%s' is not in dest or POI, context will not contain it" % fn)
@@ -62,6 +64,16 @@ def from_odm_dict(
     random.shuffle(chunks)
     for chunk in chunks:
         pack.add_to_plan(chunk)
+    if want_cursor_token and len(chunks) == 1:
+        file0 = chunks[0].orig_file
+        modlines = file0._lines_deleted | file0._lines_replaced | file0._lines_inspoints
+        thischunk_lines = set(range(chunks[0].line_n, chunks[0].line_n + len(chunks[0].to_del) + 1))
+        thischunk_modlines = list(thischunk_lines & modlines)
+        if len(thischunk_modlines) > 0:  # Can be zero for whatever reason, cursor appearance is random anyway
+            aim = random.choice(thischunk_modlines)
+            shift = np.random.poisson(2)
+            sign = np.random.choice([-1, 1])
+            file0._cursor_token_at_line = aim + shift * sign
     return pack, msg_plan_n
 
 
@@ -74,6 +86,20 @@ def _run_diff_for_single_file(f: FileElement, dest_text: List[str], exact_cx_lin
     if dest_text[-1][-1] != "\n":
         dest_text[-1] += "\n"
     lines_diff = list(CSequenceMatcher(None, f.file_lines, dest_text).get_opcodes())
+    f.lines_diff = lines_diff
+    for op, i0, i1, _, _ in lines_diff:
+        if op == "insert":
+            f._lines_inspoints.add(i0)
+        elif op == "delete":
+            assert i1 > i0
+            f._lines_deleted.update(range(i0, i1))
+        elif op == "replace":
+            assert i1 > i0
+            f._lines_replaced.update(range(i0, i1))
+        elif op == "equal":
+            pass
+        else:
+            assert 0, "unknown op %s" % op
     lines_diff = ops_stochastic_expand(lines_diff,
         left_prob=1, right_prob=1,
         exact_cx_lines0=exact_cx_lines0, exact_cx_lines1=exact_cx_lines1,

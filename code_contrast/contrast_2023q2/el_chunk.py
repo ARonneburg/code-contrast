@@ -17,7 +17,6 @@ class ChunkElement(Element):
         self.fuzzy = -1
         self.error = ""
         self._decode_state = STATE_DEL
-        # self._tok_CHUNK = -1
         self._ins_tokens: List[int] = []
         self._del_tokens: List[int] = []
         self._tok_LINE = -1
