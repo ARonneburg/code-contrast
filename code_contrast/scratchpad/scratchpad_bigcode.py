@@ -35,6 +35,7 @@ class ScratchpadBigCode(ScratchpadBase):
         self.prefix: str = ""
         self.suffix: str = ""
         self.selection: str = ""
+        self._tokens_produced = 0
 
     def before_token_selection(self, m, **unused) -> Dict[str, Any]:
         return dict()
@@ -46,6 +47,9 @@ class ScratchpadBigCode(ScratchpadBase):
             **unused
     ) -> Dict[str, Any]:
         # self.needs_upload = True
+        self._tokens_produced += 1
+        if self._tokens_produced % 5 == 0:
+            self.needs_upload = True
         self.generated_tokens_n += 1
         t = chosen_token.item()
         self._tokens.append(t)
