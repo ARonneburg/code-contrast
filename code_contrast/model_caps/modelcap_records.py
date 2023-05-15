@@ -99,18 +99,6 @@ db = [
         model_fixed_intent="Explain Code",
     ),
 
-    # ModelFunction(
-    #     "explain-error", 1, "Explain Error",
-    #     supports_highlight=False,
-    #     supports_selection=True,
-    #     selected_lines_min=1,
-    #     selected_lines_max=20,
-    #     third_party=True,
-    #     supports_languages="*.*",
-    #     mini_html=load_mini_html("explain-error"),
-    #     model="longthink",
-    # ),
-
     ModelFunction(
         "fix-bug", 1, "Fix Bug",
         supports_highlight=False,
@@ -143,10 +131,10 @@ db = [
         supports_selection=True,
         selected_lines_min=1,
         selected_lines_max=30,
-        third_party=True,
+        third_party=[True],
         supports_languages="*.*",
         mini_html=load_mini_html("precise-naming"),
-        model="longthink",
+        model=["gpt3.5"],
         model_fixed_intent="Precise Naming",
     ),
 
