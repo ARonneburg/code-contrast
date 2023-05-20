@@ -69,7 +69,7 @@ db = [
         third_party=[True, True, False, False],
         supports_languages="*.*",
         mini_html=load_mini_html("add-console-logs"),
-        model=["gpt3.5", "gpt4", "starcoder"],
+        model=["gpt3.5", "starcoder"],
         model_fixed_intent="Add console logs",
     ),
 
