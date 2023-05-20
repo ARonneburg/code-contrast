@@ -75,11 +75,6 @@ class Packer:
             self.r.extend(t)
             self.m.extend(m if i >= mask_from_plan_n else [0]*len(m))
 
-        # for i, (toks, msk) in enumerate(zip(plan_toks, plan_mask)):
-        #     self.r.append(self.enc.ESCAPE)
-        #     self.m.append(1 if i >= mask_from_plan_n else 0)
-        #     self.r.extend(toks)
-        #     self.m.extend(msk if i >= mask_from_plan_n else [0]*len(msk))
         if add_eot:
             self.r.extend([self.enc.ESCAPE, self.enc.EOT])
             self.m.extend([1, 1])

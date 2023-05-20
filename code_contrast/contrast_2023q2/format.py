@@ -26,19 +26,3 @@ def format_2023q2_escape(enc: SMCEncoding) -> Format2023q2:
     fmt.is_special_token = lambda t: t==ESCAPE
     return fmt
 
-
-# def format_2023q2_escape(enc: SMCEncoding) -> Format2023q2:
-#     fmt = Format2023q2(enc)
-#     fmt.el_start_tokens = {
-#     "USER": [enc.ISSUE_START],
-#     "ASSISTANT": [enc.ISSUE_COMMENT],
-#     }
-#     return fmt
-
-    # # A way to find a subclass of Element
-    # @staticmethod
-    # def activation_token_sequence(enc: SMCEncoding) -> List[int]:
-    #     """
-    #     Tokens which should create an instance of subclass of this class.
-    #     """
-    #     raise NotImplementedError()
