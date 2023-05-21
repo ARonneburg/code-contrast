@@ -67,7 +67,8 @@ def test_llama(enc_name):
     msg = "I can feel the magic, can you?\n\nПривет мир!!!"
     toks = enc.encode(msg)
     print("encode", toks)
-    assert toks == [306, 508, 4459, 278, 15709, 29892, 508, 366, 29973, 13, 13, 30013, 641, 7616, 4157, 29927, 21004], toks
+    # Note: token "1" is bos
+    assert toks == [1, 306, 508, 4459, 278, 15709, 29892, 508, 366, 29973, 13, 13, 30013, 641, 7616, 4157, 29927, 21004], toks
     msg2 = enc.decode(toks)
     print("decode", msg2)
     assert msg2 == msg

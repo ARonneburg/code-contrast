@@ -161,8 +161,7 @@ class SMCEncoding:
             self.bos_id: int = self._sentencepiece_tokenizer.bos_id()
             self.DIAMOND = self._sentencepiece_tokenizer.unk_id()
             self.EOT = self._sentencepiece_tokenizer.eos_id()
-            self.LF = self._encode_token("\n")
-            self.LFLF = self._encode_token("\n\n")
+            self.LF = 13
 
         elif name in ['pythia']:
             import tokenizers
