@@ -21,6 +21,8 @@ class ScratchpadBigChat(ScratchpadBase):
             **kwargs
     ):
         super().__init__(enc, **kwargs)
+        for k, v in kwargs.items():
+            self.debuglog("call %s = %s" % (k, v))
         self.enc = enc
         self.messages = messages
         self._prompt = ""
@@ -73,12 +75,8 @@ class ScratchpadBigChat(ScratchpadBase):
         return dict()
 
     def prompt(self, T: int):
-        # *self.enc.encode(base_msg),
-        # prompt: List[int] = [
-        # ]
         # Human: Write a function that takes two lists and returns a list that has alternating elements from each input list.
         # Assistant: Sure. Here is a function that does that.
-
         p = base_msg
         for msgdict in self.messages:
             p = p.rstrip()
