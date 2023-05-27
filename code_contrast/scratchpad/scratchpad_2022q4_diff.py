@@ -223,6 +223,9 @@ class ScratchpadDiff(ScratchpadBase):
                     if self.stop_lf_lf and (self.diff.r[c - 1], t) == (self.enc.LF, self.enc.LF):
                         finish("ins-stop-lflf")
                         break
+                    if self.stop_lf and t == self.enc.LF:
+                        finish("ins-stop-lf")
+                        break
                     if t == self.enc.LF:
                         if self.stream:
                             self.needs_upload = True
