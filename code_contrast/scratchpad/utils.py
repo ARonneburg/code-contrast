@@ -92,7 +92,7 @@ def temperature_top_k_top_p_filtering(logits, temperature=1, top_k=0, top_p=0, f
 def simple_stoplist_cut(orig: str, dest: str, head: int, tail: int) -> str:
     expanded_head = orig.rfind("\n", 0, head) + 1
     result = []
-    for idx, line in enumerate(dest[expanded_head:-tail].splitlines(keepends=True)):
+    for idx, line in enumerate(dest[expanded_head:len(dest)-tail].splitlines(keepends=True)):
         re_patterns = "|".join([
             r"copyright", r"copyleft", r"(C)", r"©", r"author", r"license",
             r'[\w.+-]+@[\w-]+\.[\w.-]+',  # email
