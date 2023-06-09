@@ -199,7 +199,7 @@ class ScratchpadDiff(ScratchpadBase):
         def finish(reason):
             self.finish_reason = reason
             self.diff_out.untokenize_finish_state(self.diff_out_us, self.diff_out_cursor)
-            if reason in ["ins-stoptoken", "ins-stop-lflf"] and self.ugly_hack_reattach_next_line is not None:
+            if reason in ["ins-stoptoken", "ins-stop-lf", "ins-stop-lflf"] and self.ugly_hack_reattach_next_line is not None:
                 if len(self.diff_out.edits) == 1:
                     self.debuglog("REATTACH '%s'\n" % (self.ugly_hack_reattach_next_line.replace("\n", "\\n")))
                     self.diff_out.edits[0].toins.extend(self.enc.encode(self.ugly_hack_reattach_next_line) + [self.enc.LF])
